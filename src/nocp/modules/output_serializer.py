@@ -142,19 +142,16 @@ class OutputSerializer:
             return 0.0
 
         score = 0.0
-        checks = 0
 
         # Check 1: Presence of arrays (TOON excels at arrays)
         array_count = sum(isinstance(v, list) for v in data.values())
         if array_count > 0:
             score += 0.4
-        checks += 1
 
         # Check 2: Flat structure (not deeply nested)
         max_depth = self._get_max_depth(data)
         if max_depth <= 2:
             score += 0.3
-        checks += 1
 
         # Check 3: Uniform arrays (arrays with consistent structure)
         uniform_arrays = self._count_uniform_arrays(data)
@@ -162,7 +159,6 @@ class OutputSerializer:
         if total_arrays > 0:
             uniformity_ratio = uniform_arrays / total_arrays
             score += 0.3 * uniformity_ratio
-        checks += 1
 
         return score
 

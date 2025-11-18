@@ -342,7 +342,15 @@ class HighEfficiencyProxyAgent:
 
         # Add conversation history
         for msg in transient_ctx.conversation_history:
-            role = "user" if msg.role in ["user", "system"] else "model"
+            # Map roles to Gemini API format
+            if msg.role in ["user", "system"]:
+                role = "user"
+            elif msg.role == "assistant":
+                role = "model"
+            else:
+                # tool role stays as "tool"
+                role = msg.role
+
             messages.append({
                 "role": role,
                 "parts": [{"text": msg.content}],

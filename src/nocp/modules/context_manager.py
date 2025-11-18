@@ -110,7 +110,9 @@ class ContextManager:
         net_savings = raw_token_count - compressed_token_count - compression_cost
 
         # Cost-of-Compression Calculus: Verify savings justify the overhead
-        if net_savings <= 0:
+        # Net Savings > Compression_Cost × Multiplier
+        justification_threshold = compression_cost * self.config.compression_cost_multiplier
+        if net_savings <= justification_threshold:
             self.logger.warning(
                 "compression_not_justified",
                 tool_name=tool_name,
@@ -118,6 +120,7 @@ class ContextManager:
                 compressed_tokens=compressed_token_count,
                 compression_cost=compression_cost,
                 net_savings=net_savings,
+                justification_threshold=justification_threshold,
             )
             # Return raw output if compression wasn't beneficial
             return raw_output, None
@@ -126,7 +129,7 @@ class ContextManager:
         compression_result = CompressionResult(
             original_tokens=raw_token_count,
             compressed_tokens=compressed_token_count,
-            compression_ratio=compressed_token_count / raw_token_count,
+            compression_ratio=compressed_token_count / raw_token_count if raw_token_count > 0 else 1.0,
             compression_method=compression_method,
             compression_cost_tokens=compression_cost,
             compression_time_ms=compression_time_ms,

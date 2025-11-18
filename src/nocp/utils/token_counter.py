@@ -5,6 +5,7 @@ This module provides a centralized interface for token counting,
 which is fundamental to the dynamic compression policy.
 """
 
+import json
 from typing import Any, Dict, List, Optional
 import google.generativeai as genai
 
@@ -88,8 +89,6 @@ class TokenCounter:
         Returns:
             Number of tokens
         """
-        import json
-
         try:
             json_str = json.dumps(data)
             return self.count_text(json_str)

@@ -10,11 +10,6 @@ This example shows:
 """
 
 import os
-import sys
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from nocp import HighEfficiencyProxyAgent, AgentRequest
 from nocp.tools import (
@@ -64,9 +59,10 @@ def main():
     fetch_def, fetch_func = create_fetch_document_tool()
     agent.register_tool(fetch_def, fetch_func)
 
-    print(f"✓ Registered {len(agent.tool_executor._tools)} tools:")
-    for tool_name in agent.tool_executor._tools.keys():
-        print(f"  - {tool_name}")
+    tool_definitions = agent.tool_executor.get_tool_definitions()
+    print(f"✓ Registered {len(tool_definitions)} tools:")
+    for tool_def in tool_definitions:
+        print(f"  - {tool_def.name}")
     print()
 
     # Create a request
@@ -130,8 +126,10 @@ def main():
         print(f"  Estimated Cost:          ${metrics.estimated_cost_usd:.6f}")
         if metrics.estimated_savings_usd:
             print(f"  Estimated Savings:       ${metrics.estimated_savings_usd:.6f}")
-            savings_pct = (metrics.estimated_savings_usd / (metrics.estimated_cost_usd + metrics.estimated_savings_usd)) * 100
-            print(f"  Savings Percentage:      {savings_pct:.1f}%")
+            total_cost = metrics.estimated_cost_usd + metrics.estimated_savings_usd
+            if total_cost > 0:
+                savings_pct = (metrics.estimated_savings_usd / total_cost) * 100
+                print(f"  Savings Percentage:      {savings_pct:.1f}%")
         print()
 
         if metrics.compression_operations:

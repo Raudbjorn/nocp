@@ -102,6 +102,10 @@ class ProxyConfig(BaseSettings):
         default=Path("./logs/metrics.jsonl"),
         description="Path to metrics log file"
     )
+    drift_detection_threshold: float = Field(
+        default=-1000.0,
+        description="Threshold for drift detection warning (negative delta trend)"
+    )
 
     # Multi-Cloud Configuration (Optional)
     enable_litellm: bool = Field(

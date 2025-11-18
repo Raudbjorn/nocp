@@ -197,12 +197,16 @@ class MetricsLogger:
         else:
             delta_trend = 0
 
+        # Get drift threshold from config
+        from ..core.config import get_config
+        config = get_config()
+
         drift_metrics = {
             "avg_efficiency_delta": avg_efficiency_delta,
             "avg_compression_ratio": avg_compression_ratio,
             "delta_trend": delta_trend,
             "transactions_analyzed": len(transactions),
-            "drift_detected": delta_trend < -1000,  # Threshold for drift warning
+            "drift_detected": delta_trend < config.drift_detection_threshold,
         }
 
         if drift_metrics["drift_detected"]:
