@@ -1,0 +1,183 @@
+"""
+Configuration management for the NOCP proxy agent.
+
+Loads settings from environment variables and provides a centralized
+configuration object for all components.
+"""
+
+import os
+from typing import Optional, Dict
+from pathlib import Path
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ProxyConfig(BaseSettings):
+    """
+    Main configuration class for the High-Efficiency Proxy Agent.
+
+    Loads configuration from environment variables with sensible defaults
+    based on the architectural blueprint.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # Gemini API Configuration
+    gemini_api_key: str = Field(..., description="Google Gemini API key")
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        description="Primary Gemini model to use"
+    )
+
+    # Context Window Limits (Gemini 2.5 Flash defaults)
+    max_input_tokens: int = Field(
+        default=1_048_576,
+        description="Maximum input tokens (1M for Gemini 2.5 Flash)"
+    )
+    max_output_tokens: int = Field(
+        default=65_535,
+        description="Maximum output tokens for Gemini 2.5 Flash"
+    )
+
+    # Dynamic Compression Configuration
+    default_compression_threshold: int = Field(
+        default=5000,
+        description="Default T_comp: activate compression above this token count"
+    )
+    compression_cost_multiplier: float = Field(
+        default=1.5,
+        description="Minimum savings multiplier to justify compression overhead"
+    )
+
+    # Student Summarizer Configuration
+    student_summarizer_model: str = Field(
+        default="gemini-1.5-flash-8b",
+        description="Lightweight model for knowledge distillation"
+    )
+    student_summarizer_max_tokens: int = Field(
+        default=2000,
+        description="Maximum output tokens for student summarizer"
+    )
+
+    # Compression Strategy Toggles
+    enable_semantic_pruning: bool = Field(
+        default=True,
+        description="Enable semantic pruning for RAG/document outputs"
+    )
+    enable_knowledge_distillation: bool = Field(
+        default=True,
+        description="Enable knowledge distillation via student summarizer"
+    )
+    enable_history_compaction: bool = Field(
+        default=True,
+        description="Enable conversation history compaction"
+    )
+
+    # Output Serialization Configuration
+    default_output_format: str = Field(
+        default="toon",
+        description="Default output format: toon, compact_json, or json"
+    )
+    toon_fallback_threshold: float = Field(
+        default=0.3,
+        description="Tabularity threshold below which to fallback to compact JSON"
+    )
+    enable_format_negotiation: bool = Field(
+        default=True,
+        description="Enable automatic format negotiation based on data structure"
+    )
+
+    # Monitoring and Logging
+    log_level: str = Field(default="INFO", description="Logging level")
+    enable_metrics_logging: bool = Field(
+        default=True,
+        description="Enable detailed metrics logging"
+    )
+    metrics_log_file: Path = Field(
+        default=Path("./logs/metrics.jsonl"),
+        description="Path to metrics log file"
+    )
+
+    # Multi-Cloud Configuration (Optional)
+    enable_litellm: bool = Field(
+        default=False,
+        description="Enable LiteLLM for multi-cloud routing"
+    )
+    litellm_fallback_models: Optional[str] = Field(
+        default=None,
+        description="Comma-separated list of fallback models"
+    )
+
+    # Cost Tracking (per 1M tokens in USD)
+    gemini_flash_input_cost: float = Field(
+        default=0.075,
+        description="Cost per 1M input tokens for Gemini 2.5 Flash"
+    )
+    gemini_flash_output_cost: float = Field(
+        default=0.30,
+        description="Cost per 1M output tokens for Gemini 2.5 Flash"
+    )
+
+    def get_compression_threshold(self, tool_name: Optional[str] = None) -> int:
+        """
+        Get compression threshold for a specific tool or default.
+
+        Args:
+            tool_name: Optional tool name for custom threshold
+
+        Returns:
+            Compression threshold in tokens
+        """
+        # In future, this could load tool-specific thresholds from a config file
+        return self.default_compression_threshold
+
+    def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """
+        Calculate estimated cost in USD for a request.
+
+        Args:
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+
+        Returns:
+            Estimated cost in USD
+        """
+        input_cost = (input_tokens / 1_000_000) * self.gemini_flash_input_cost
+        output_cost = (output_tokens / 1_000_000) * self.gemini_flash_output_cost
+        return input_cost + output_cost
+
+    def ensure_log_directory(self) -> None:
+        """Ensure the metrics log directory exists."""
+        self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
+
+
+# Global configuration instance
+_config: Optional[ProxyConfig] = None
+
+
+def get_config() -> ProxyConfig:
+    """
+    Get the global configuration instance.
+
+    Returns:
+        ProxyConfig instance
+
+    Raises:
+        ValueError: If configuration hasn't been initialized
+    """
+    global _config
+    if _config is None:
+        _config = ProxyConfig()
+        _config.ensure_log_directory()
+    return _config
+
+
+def reset_config() -> None:
+    """Reset the global configuration (mainly for testing)."""
+    global _config
+    _config = None
