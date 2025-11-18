@@ -1,5 +1,5 @@
 """
-TOON (Token-Oriented Object Notation) Encoder
+TOON (Text-Oriented Object Notation) Encoder
 
 A compact serialization format optimized for LLM token efficiency.
 Combines indentation-based structure for nested objects with CSV-style
