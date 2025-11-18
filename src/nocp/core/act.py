@@ -7,7 +7,6 @@ Manages tool registration and execution with retry logic and timeout handling.
 import asyncio
 import json
 import logging
-import signal
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
@@ -250,33 +249,30 @@ class ToolExecutor:
         timeout: int
     ) -> Any:
         """
-        Execute function with timeout.
+        Execute function with timeout using concurrent.futures for cross-platform support.
 
-        Note: Unix-only implementation using signals.
-        For cross-platform, consider using threading.Timer or multiprocessing.
+        Uses ThreadPoolExecutor to run the function in a separate thread with a timeout,
+        which works on all platforms (Unix, Windows, macOS).
+
+        Args:
+            func: Function to execute
+            params: Parameters to pass to the function
+            timeout: Timeout in seconds
+
+        Returns:
+            Result from function execution
+
+        Raises:
+            TimeoutError: If execution exceeds timeout
         """
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Tool execution exceeded {timeout}s")
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-        # Set timeout alarm (Unix-only)
-        try:
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
-
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func, **params)
             try:
-                result = func(**params)
-                signal.alarm(0)  # Cancel alarm
-                return result
-            finally:
-                signal.alarm(0)
-        except AttributeError:
-            # Windows doesn't have SIGALRM - just execute without timeout
-            # In production, use threading.Timer or concurrent.futures
-            logger.warning(
-                "Tool execution timeout is not supported on Windows. "
-                "Running without a timeout."
-            )
-            return func(**params)
+                return future.result(timeout=timeout)
+            except FuturesTimeoutError:
+                raise TimeoutError(f"Tool execution exceeded {timeout}s timeout")
 
     def _estimate_tokens(self, data: Any) -> int:
         """

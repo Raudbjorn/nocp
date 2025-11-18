@@ -44,7 +44,9 @@ class ContextManager:
         student_model: str = "openai/gpt-4o-mini",
         compression_threshold: int = 10_000,
         target_compression_ratio: float = 0.40,
-        enable_litellm: bool = True
+        enable_litellm: bool = True,
+        main_model_cost_per_million: float = 1.00,
+        student_model_cost_per_million: float = 0.15
     ):
         """
         Initialize Context Manager.
@@ -54,11 +56,15 @@ class ContextManager:
             compression_threshold: Only compress if input exceeds this token count
             target_compression_ratio: Target ratio (0.40 = 60% reduction)
             enable_litellm: Enable LiteLLM integration (requires API keys)
+            main_model_cost_per_million: Cost per 1M input tokens for main LLM (default: $1.00 for Gemini 2.0 Flash)
+            student_model_cost_per_million: Cost per 1M tokens for student summarizer (default: $0.15 for GPT-4o-mini)
         """
         self.student_model = student_model
         self.compression_threshold = compression_threshold
         self.target_compression_ratio = target_compression_ratio
         self.enable_litellm = enable_litellm
+        self.main_model_cost_per_million = main_model_cost_per_million
+        self.student_model_cost_per_million = student_model_cost_per_million
 
         # Try to import litellm if enabled
         self.litellm = None
@@ -136,10 +142,9 @@ class ContextManager:
         compressed_tokens = self.estimate_tokens(compressed_text)
         compression_ratio = compressed_tokens / original_tokens if original_tokens > 0 else 1.0
 
-        # Step 6: Calculate cost savings
-        # Assume $1.00 per 1M input tokens (Gemini 2.0 Flash pricing)
+        # Step 6: Calculate cost savings using configured pricing
         token_savings = original_tokens - compressed_tokens
-        cost_savings = (token_savings / 1_000_000) * 1.00
+        cost_savings = (token_savings / 1_000_000) * self.main_model_cost_per_million
 
         return OptimizedContext(
             optimized_text=compressed_text,
@@ -259,7 +264,6 @@ class ContextManager:
         if context.transient_context:
             pruned_results.append({"context": context.transient_context})
 
-        import json
         return json.dumps(pruned_results, indent=2)
 
     def _knowledge_distillation(self, context: ContextData) -> str:
@@ -284,13 +288,13 @@ class ContextManager:
             target_length = int(len(raw_text) * self.target_compression_ratio)
             return raw_text[:target_length] + "\n[... truncated for length ...]"
 
-        # Cost of summarization
-        summarization_cost = (raw_tokens / 1_000_000) * 0.15
+        # Cost of summarization using configured pricing
+        summarization_cost = (raw_tokens / 1_000_000) * self.student_model_cost_per_million
 
-        # Expected savings (assume 60% reduction)
+        # Expected savings (assume configured compression ratio)
         expected_compressed_tokens = int(raw_tokens * self.target_compression_ratio)
         token_savings = raw_tokens - expected_compressed_tokens
-        main_model_savings = (token_savings / 1_000_000) * 1.00  # Gemini pricing
+        main_model_savings = (token_savings / 1_000_000) * self.main_model_cost_per_million
 
         # Only summarize if cost-effective
         if main_model_savings <= summarization_cost:
@@ -395,7 +399,6 @@ class ContextManager:
 
         # Add transient context
         if context.transient_context:
-            import json
             parts.append(f"Context: {json.dumps(context.transient_context, indent=2)}")
 
         # Add message history

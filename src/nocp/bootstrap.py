@@ -179,7 +179,12 @@ class UVBootstrap:
         print("   uv is a fast Python package manager from Astral.")
         print("   More info: https://github.com/astral-sh/uv\n")
 
-        # Ask for permission (in production, could be auto-yes)
+        # Auto-install in CI/CD or if explicitly requested
+        if os.getenv("CI") or os.getenv("NOCP_AUTO_INSTALL_UV"):
+            print("🔧 Auto-installing uv (CI/CD mode detected)...")
+            return self.install()
+
+        # Ask for permission in interactive mode
         try:
             response = input("Install uv now? [Y/n]: ").strip().lower()
             if response in ("", "y", "yes"):

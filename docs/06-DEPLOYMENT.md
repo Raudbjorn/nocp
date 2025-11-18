@@ -271,29 +271,35 @@ Key metrics tracked:
 
 ### 4.3 Viewing Logs and Metrics
 
-**Note**: The following commands are planned for Phase 3 (Production Readiness) and are not yet implemented in the MVP:
+**Current MVP Status**: The CLI commands below are not yet implemented. For MVP, use standard Python logging.
 
-```bash
-# View real-time logs (Phase 3)
-# ./nocp logs --follow
-
-# View specific time range (Phase 3)
-# ./nocp logs --since "2025-11-18 10:00" --until "2025-11-18 12:00"
-
-# Filter by level (Phase 3)
-# ./nocp logs --level ERROR
-
-# Export metrics (Phase 3)
-# ./nocp metrics export --format json > metrics.json
-
-# View dashboard (if configured) (Phase 3)
-# ./nocp dashboard
-```
-
-For MVP, use standard Python logging:
+**MVP Alternative**:
 ```python
 import logging
 logging.basicConfig(level=logging.INFO)
+```
+
+---
+
+### 4.4 Future Features (Phase 3)
+
+The following commands are planned for Phase 3 (Production Readiness):
+
+```bash
+# View real-time logs
+./nocp logs --follow
+
+# View specific time range
+./nocp logs --since "2025-11-18 10:00" --until "2025-11-18 12:00"
+
+# Filter by level
+./nocp logs --level ERROR
+
+# Export metrics
+./nocp metrics export --format json > metrics.json
+
+# View dashboard (if configured)
+./nocp dashboard
 ```
 
 ---
@@ -389,9 +395,14 @@ RUN ./nocp setup
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD ./nocp health || exit 1
 
-# Run application (Note: 'serve' command not yet implemented in MVP)
-# For now, use: CMD ["./nocp", "shell"] or implement a custom serve command
-CMD ["./nocp", "info"]
+# Run application
+# NOTE: The following CMD is a non-functional placeholder for demonstration purposes only.
+# This Dockerfile example shows the structure, but the CMD needs to be replaced based on your use case:
+#   - For API server: CMD ["./nocp", "serve"] (requires implementing serve command)
+#   - For development: CMD ["./nocp", "shell"] (interactive shell)
+#   - For job processing: Implement a custom worker command
+# The 'info' command only displays project information and exits immediately.
+CMD ["./nocp", "info"]  # Placeholder - replace with actual application entry point
 ```
 
 **Build and run:**
