@@ -107,14 +107,38 @@ class ProxyConfig(BaseSettings):
         description="Threshold for drift detection warning (negative delta trend)"
     )
 
-    # Multi-Cloud Configuration (Optional)
+    # Multi-Cloud Configuration (LiteLLM)
     enable_litellm: bool = Field(
-        default=False,
+        default=True,
         description="Enable LiteLLM for multi-cloud routing"
     )
+    litellm_default_model: str = Field(
+        default="gemini/gemini-2.0-flash-exp",
+        description="Default model in LiteLLM format (provider/model)"
+    )
     litellm_fallback_models: Optional[str] = Field(
-        default=None,
+        default="gemini/gemini-1.5-flash,openai/gpt-4o-mini",
         description="Comma-separated list of fallback models"
+    )
+    litellm_max_retries: int = Field(
+        default=3,
+        description="Maximum retry attempts for LiteLLM calls"
+    )
+    litellm_timeout: int = Field(
+        default=60,
+        description="Request timeout in seconds for LiteLLM"
+    )
+
+    # OpenAI API Configuration (Optional for multi-cloud)
+    openai_api_key: Optional[str] = Field(
+        default=None,
+        description="OpenAI API key for multi-cloud routing"
+    )
+
+    # Anthropic API Configuration (Optional for multi-cloud)
+    anthropic_api_key: Optional[str] = Field(
+        default=None,
+        description="Anthropic API key for multi-cloud routing"
     )
 
     # Cost Tracking (per 1M tokens in USD)
