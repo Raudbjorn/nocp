@@ -89,21 +89,21 @@ class ToolExecutor:
 
         Returns:
             ToolResult with execution outcome and metadata
+
+        Raises:
+            ToolExecutionError: If execution fails after all retries
+            TimeoutError: If execution exceeds timeout
         """
         if request.tool_id not in self._registry:
-            return ToolResult(
-                tool_id=request.tool_id,
-                success=False,
-                data=None,
-                error=f"Tool '{request.tool_id}' not found in registry",
-                execution_time_ms=0.0,
-                timestamp=datetime.now(),
-                token_estimate=0
+            raise ToolExecutionError(
+                f"Tool '{request.tool_id}' not found in registry",
+                details={"tool_id": request.tool_id}
             )
 
         retry_config = request.retry_config
         max_attempts = retry_config.max_attempts if retry_config else 1
         last_error = None
+        is_timeout = False
 
         for attempt in range(max_attempts):
             try:
@@ -135,6 +135,7 @@ class ToolExecutor:
 
             except TimeoutError as e:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
+                is_timeout = True
                 if attempt < max_attempts - 1:
                     # Exponential backoff
                     if retry_config:
@@ -145,6 +146,7 @@ class ToolExecutor:
 
             except Exception as e:
                 last_error = str(e)
+                is_timeout = False
                 if attempt < max_attempts - 1:
                     # Exponential backoff
                     if retry_config:
@@ -153,17 +155,18 @@ class ToolExecutor:
                         time.sleep(delay)
                 continue
 
-        # All retries failed
-        return ToolResult(
-            tool_id=request.tool_id,
-            success=False,
-            data=None,
-            error=last_error,
-            execution_time_ms=0.0,
-            timestamp=datetime.now(),
-            token_estimate=0,
-            retry_count=max_attempts
-        )
+        # All retries failed - raise appropriate exception
+        if is_timeout:
+            raise TimeoutError(last_error)
+        else:
+            raise ToolExecutionError(
+                f"Tool execution failed after {max_attempts} attempts",
+                details={
+                    "tool_id": request.tool_id,
+                    "last_error": last_error,
+                    "attempts": max_attempts
+                }
+            )
 
     async def execute_async(self, request: ToolRequest) -> ToolResult:
         """
@@ -174,21 +177,21 @@ class ToolExecutor:
 
         Returns:
             ToolResult with execution outcome and metadata
+
+        Raises:
+            ToolExecutionError: If execution fails after all retries
+            TimeoutError: If execution exceeds timeout
         """
         if request.tool_id not in self._async_registry:
-            return ToolResult(
-                tool_id=request.tool_id,
-                success=False,
-                data=None,
-                error=f"Async tool '{request.tool_id}' not found in registry",
-                execution_time_ms=0.0,
-                timestamp=datetime.now(),
-                token_estimate=0
+            raise ToolExecutionError(
+                f"Async tool '{request.tool_id}' not found in registry",
+                details={"tool_id": request.tool_id}
             )
 
         retry_config = request.retry_config
         max_attempts = retry_config.max_attempts if retry_config else 1
         last_error = None
+        is_timeout = False
 
         for attempt in range(max_attempts):
             try:
@@ -217,6 +220,7 @@ class ToolExecutor:
 
             except asyncio.TimeoutError:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
+                is_timeout = True
                 if attempt < max_attempts - 1 and retry_config:
                     delay = (retry_config.initial_delay_ms / 1000) * \
                             (retry_config.backoff_multiplier ** attempt)
@@ -225,22 +229,25 @@ class ToolExecutor:
 
             except Exception as e:
                 last_error = str(e)
+                is_timeout = False
                 if attempt < max_attempts - 1 and retry_config:
                     delay = (retry_config.initial_delay_ms / 1000) * \
                             (retry_config.backoff_multiplier ** attempt)
                     await asyncio.sleep(delay)
                 continue
 
-        return ToolResult(
-            tool_id=request.tool_id,
-            success=False,
-            data=None,
-            error=last_error,
-            execution_time_ms=0.0,
-            timestamp=datetime.now(),
-            token_estimate=0,
-            retry_count=max_attempts
-        )
+        # All retries failed - raise appropriate exception
+        if is_timeout:
+            raise TimeoutError(last_error)
+        else:
+            raise ToolExecutionError(
+                f"Tool execution failed after {max_attempts} attempts",
+                details={
+                    "tool_id": request.tool_id,
+                    "last_error": last_error,
+                    "attempts": max_attempts
+                }
+            )
 
     def _execute_with_timeout(
         self,
