@@ -39,6 +39,7 @@ class LLMClient:
         self,
         default_model: str = "gemini/gemini-2.0-flash-exp",
         api_key: Optional[str] = None,
+        provider_api_keys: Optional[Dict[str, str]] = None,
         fallback_models: Optional[List[str]] = None,
         max_retries: int = 3,
         timeout: int = 60,
@@ -48,7 +49,9 @@ class LLMClient:
 
         Args:
             default_model: Default model to use (LiteLLM format: "provider/model")
-            api_key: Optional API key (can also use env vars)
+            api_key: Optional primary API key (for default model provider)
+            provider_api_keys: Optional dict of provider-specific API keys
+                               e.g., {"openai": "sk-...", "anthropic": "sk-ant-..."}
             fallback_models: List of fallback models if primary fails
             max_retries: Maximum retry attempts on transient failures
             timeout: Request timeout in seconds
@@ -63,15 +66,25 @@ class LLMClient:
             import litellm
             self.litellm = litellm
 
-            # Configure litellm
+            # Configure provider-specific API keys
+            provider_keys = provider_api_keys or {}
+
+            # Set primary API key for default model if provided
             if api_key:
-                # Set API key for the provider
-                provider = default_model.split("/")[0]
+                provider = default_model.split("/")[0] if "/" in default_model else "gemini"
+                provider_keys[provider] = api_key
+
+            # Configure all provider keys
+            for provider, key in provider_keys.items():
                 if provider == "gemini":
-                    litellm.api_key = api_key
+                    litellm.api_key = key
                 elif provider == "openai":
-                    litellm.openai_key = api_key
-                # Add more providers as needed
+                    litellm.openai_key = key
+                elif provider == "anthropic":
+                    litellm.anthropic_key = key
+                elif provider == "vertex_ai":
+                    litellm.vertex_ai_key = key
+                # LiteLLM will handle other providers via environment variables
 
             # Enable caching for token counting
             litellm.cache = None  # Disable by default, can be enabled

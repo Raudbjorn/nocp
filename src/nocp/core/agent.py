@@ -70,9 +70,17 @@ class HighEfficiencyProxyAgent:
                     m.strip() for m in self.config.litellm_fallback_models.split(",")
                 ]
 
+            # Build provider-specific API keys dictionary
+            provider_api_keys = {}
+            if self.config.openai_api_key:
+                provider_api_keys["openai"] = self.config.openai_api_key
+            if self.config.anthropic_api_key:
+                provider_api_keys["anthropic"] = self.config.anthropic_api_key
+
             self.llm_client = LLMClient(
                 default_model=model_name or self.config.litellm_default_model,
                 api_key=api_key or self.config.gemini_api_key,
+                provider_api_keys=provider_api_keys,
                 fallback_models=fallback_models,
                 max_retries=self.config.litellm_max_retries,
                 timeout=self.config.litellm_timeout,
@@ -245,6 +253,47 @@ class HighEfficiencyProxyAgent:
             )
             raise
 
+    def _handle_tool_execution(
+        self,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+        transient_ctx: TransientContext,
+        compression_operations: List[CompressionResult],
+        tools_used: List[str],
+    ) -> None:
+        """
+        Execute a tool and manage its output.
+
+        This helper extracts the common tool execution logic used by both
+        LiteLLM and Gemini response handlers.
+
+        Args:
+            tool_name: Name of the tool to execute
+            tool_params: Parameters for the tool
+            transient_ctx: Transient context to update
+            compression_operations: List to track compression operations
+            tools_used: List to track tools used
+        """
+        tools_used.append(tool_name)
+
+        # Execute tool
+        tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
+
+        # Apply context management (compression)
+        managed_output, compression_result = self.context_manager.manage_tool_output(
+            tool_result
+        )
+
+        if compression_result:
+            compression_operations.append(compression_result)
+
+        # Add tool result to history
+        self.router.add_tool_result_to_history(
+            transient_ctx,
+            tool_name,
+            managed_output,
+        )
+
     def _execute_agent_loop(
         self,
         transient_ctx: TransientContext,
@@ -313,24 +362,13 @@ class HighEfficiencyProxyAgent:
                 tool_name = tool_call["name"]
                 tool_params = tool_call["arguments"]
 
-                tools_used.append(tool_name)
-
-                # Execute tool
-                tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
-
-                # Apply context management (compression)
-                managed_output, compression_result = self.context_manager.manage_tool_output(
-                    tool_result
-                )
-
-                if compression_result:
-                    compression_operations.append(compression_result)
-
-                # Add tool result to history
-                self.router.add_tool_result_to_history(
-                    transient_ctx,
+                # Execute tool and manage output (shared logic)
+                self._handle_tool_execution(
                     tool_name,
-                    managed_output,
+                    tool_params,
+                    transient_ctx,
+                    compression_operations,
+                    tools_used,
                 )
 
                 # Continue agent loop with tool result
@@ -353,24 +391,13 @@ class HighEfficiencyProxyAgent:
                 tool_name = function_call.name
                 tool_params = dict(function_call.args)
 
-                tools_used.append(tool_name)
-
-                # Execute tool
-                tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
-
-                # Apply context management (compression)
-                managed_output, compression_result = self.context_manager.manage_tool_output(
-                    tool_result
-                )
-
-                if compression_result:
-                    compression_operations.append(compression_result)
-
-                # Add tool result to history
-                self.router.add_tool_result_to_history(
-                    transient_ctx,
+                # Execute tool and manage output (shared logic)
+                self._handle_tool_execution(
                     tool_name,
-                    managed_output,
+                    tool_params,
+                    transient_ctx,
+                    compression_operations,
+                    tools_used,
                 )
 
                 # Continue agent loop with tool result
