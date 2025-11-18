@@ -1,0 +1,52 @@
+[project]
+name = "nocp"
+version = "0.1.0"
+description = "High-Efficiency LLM Proxy Agent with Token Optimization (TOON Layer)"
+authors = [
+    {name = "Raudbjorn", email = "info@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "google-generativeai>=0.3.0",
+    "python-dotenv>=1.0.0",
+    "structlog>=23.1.0",
+    "tenacity>=8.2.0",
+    "tiktoken>=0.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "ruff>=0.0.285",
+    "mypy>=1.5.0",
+]
+
+litellm = [
+    "litellm>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
