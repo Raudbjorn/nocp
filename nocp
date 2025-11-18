@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Bootstrap uv (will install if not present)
-if ! python3 src/nocp/bootstrap.py; then
+if ! ./src/nocp/bootstrap.py; then
     echo "❌ Failed to bootstrap uv. Cannot continue."
     exit 1
 fi

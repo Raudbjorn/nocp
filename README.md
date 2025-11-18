@@ -18,7 +18,7 @@ The project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Python
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Raudbjorn/nocp
 cd nocp
 
 # Setup (automatically installs uv if needed)
