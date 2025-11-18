@@ -130,9 +130,12 @@ class LLMClient:
 
             # Handle structured output if schema provided
             if response_schema:
+                # Extract provider from model string (format: "provider/model")
+                provider = model.split("/")[0] if "/" in model else "unknown"
+
                 # LiteLLM supports response_format for some providers
                 # For Gemini, we'll use function calling to enforce schema
-                if "gemini" in model:
+                if provider == "gemini":
                     # Use function calling for structured output
                     schema_json = response_schema.model_json_schema()
                     completion_kwargs["tools"] = [
@@ -163,7 +166,8 @@ class LLMClient:
             response = self.litellm.completion(**completion_kwargs)
 
             # Extract content
-            if response_schema and "gemini" in model:
+            provider = model.split("/")[0] if "/" in model else "unknown"
+            if response_schema and provider == "gemini":
                 # Extract from function call
                 if hasattr(response.choices[0].message, 'tool_calls') and response.choices[0].message.tool_calls:
                     tool_call = response.choices[0].message.tool_calls[0]

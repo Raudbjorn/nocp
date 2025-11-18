@@ -278,8 +278,12 @@ class ContextManager:
         # Target compressed size
         expected_compressed_tokens = int(raw_tokens * self.target_compression_ratio)
 
-        # Only summarize if we expect significant reduction (at least 30%)
-        if (raw_tokens - expected_compressed_tokens) / raw_tokens < 0.3:
+        # Only summarize if we expect significant reduction based on target ratio
+        # Calculate minimum reduction threshold (inverse of target ratio)
+        min_reduction_ratio = 1.0 - self.target_compression_ratio
+        actual_reduction_ratio = (raw_tokens - expected_compressed_tokens) / raw_tokens if raw_tokens > 0 else 0
+
+        if actual_reduction_ratio < min_reduction_ratio:
             return raw_text  # Not enough potential compression
 
         # Call student model

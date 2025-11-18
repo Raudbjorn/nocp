@@ -344,7 +344,12 @@ class HighEfficiencyProxyAgent:
                 response_text = str(response.content) if response.content else ""
         else:
             # Handle genai response (backward compatibility)
-            if hasattr(response, 'candidates') and (function_call := response.candidates[0].content.parts[0].function_call):
+            if (hasattr(response, 'candidates') and
+                len(response.candidates) > 0 and
+                hasattr(response.candidates[0], 'content') and
+                hasattr(response.candidates[0].content, 'parts') and
+                len(response.candidates[0].content.parts) > 0 and
+                (function_call := response.candidates[0].content.parts[0].function_call)):
                 tool_name = function_call.name
                 tool_params = dict(function_call.args)
 

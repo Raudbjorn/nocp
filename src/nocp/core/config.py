@@ -168,6 +168,29 @@ class ProxyConfig(BaseSettings):
             return self._compression_thresholds[tool_name]
         return self.default_compression_threshold
 
+    def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """
+        DEPRECATED: Calculate estimated cost in USD for a request.
+
+        Cost tracking has been removed in favor of token efficiency metrics.
+        This method is kept for backward compatibility but always returns 0.0.
+
+        Args:
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+
+        Returns:
+            0.0 (cost tracking deprecated)
+        """
+        import warnings
+        warnings.warn(
+            "calculate_cost() is deprecated and will be removed in v2.0. "
+            "Focus on token reduction metrics instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return 0.0
+
     def ensure_log_directory(self) -> None:
         """Ensure the metrics log directory exists."""
         if (
