@@ -1,0 +1,299 @@
+"""
+Act Module: Tool Executor
+
+Manages tool registration and execution with retry logic and timeout handling.
+"""
+
+import asyncio
+import signal
+import time
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional
+
+from ..exceptions import ToolExecutionError
+from ..models.contracts import ToolRequest, ToolResult, ToolType
+
+
+class ToolExecutor:
+    """
+    Manages tool registration and execution with retry logic.
+
+    Example:
+        executor = ToolExecutor()
+
+        @executor.register_tool("fetch_data")
+        def fetch_data(param1: str) -> dict:
+            return {"result": param1}
+
+        request = ToolRequest(
+            tool_id="fetch_data",
+            tool_type=ToolType.PYTHON_FUNCTION,
+            function_name="fetch_data",
+            parameters={"param1": "test"}
+        )
+        result = executor.execute(request)
+    """
+
+    def __init__(self):
+        self._registry: Dict[str, Callable] = {}
+        self._async_registry: Dict[str, Callable] = {}
+
+    def register_tool(
+        self,
+        tool_id: str,
+        tool_type: ToolType = ToolType.PYTHON_FUNCTION
+    ) -> Callable:
+        """
+        Decorator to register a synchronous tool.
+
+        Args:
+            tool_id: Unique identifier for the tool
+            tool_type: Category of tool (default: PYTHON_FUNCTION)
+
+        Returns:
+            Decorator function
+
+        Example:
+            @executor.register_tool("my_tool")
+            def my_tool(param: str) -> str:
+                return param.upper()
+        """
+        def decorator(func: Callable) -> Callable:
+            self._registry[tool_id] = func
+            return func
+        return decorator
+
+    def register_async_tool(self, tool_id: str) -> Callable:
+        """Decorator to register an async tool."""
+        def decorator(func: Callable) -> Callable:
+            self._async_registry[tool_id] = func
+            return func
+        return decorator
+
+    def execute(self, request: ToolRequest) -> ToolResult:
+        """
+        Execute a registered tool with retry logic.
+
+        Implementation steps:
+        1. Validate tool exists in registry
+        2. Execute with timeout
+        3. Retry on failure if configured
+        4. Estimate token count of result
+        5. Return ToolResult
+
+        Args:
+            request: ToolRequest with execution parameters
+
+        Returns:
+            ToolResult with execution outcome and metadata
+        """
+        if request.tool_id not in self._registry:
+            return ToolResult(
+                tool_id=request.tool_id,
+                success=False,
+                data=None,
+                error=f"Tool '{request.tool_id}' not found in registry",
+                execution_time_ms=0.0,
+                timestamp=datetime.now(),
+                token_estimate=0
+            )
+
+        retry_config = request.retry_config
+        max_attempts = retry_config.max_attempts if retry_config else 1
+        last_error = None
+
+        for attempt in range(max_attempts):
+            try:
+                start = time.perf_counter()
+
+                # Execute tool with timeout
+                func = self._registry[request.tool_id]
+                result = self._execute_with_timeout(
+                    func,
+                    request.parameters,
+                    request.timeout_seconds
+                )
+
+                execution_time = (time.perf_counter() - start) * 1000
+
+                # Estimate tokens
+                token_estimate = self._estimate_tokens(result)
+
+                return ToolResult(
+                    tool_id=request.tool_id,
+                    success=True,
+                    data=result,
+                    error=None,
+                    execution_time_ms=execution_time,
+                    timestamp=datetime.now(),
+                    token_estimate=token_estimate,
+                    retry_count=attempt
+                )
+
+            except TimeoutError as e:
+                last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
+                if attempt < max_attempts - 1:
+                    # Exponential backoff
+                    if retry_config:
+                        delay = (retry_config.initial_delay_ms / 1000) * \
+                                (retry_config.backoff_multiplier ** attempt)
+                        time.sleep(delay)
+                continue
+
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_attempts - 1:
+                    # Exponential backoff
+                    if retry_config:
+                        delay = (retry_config.initial_delay_ms / 1000) * \
+                                (retry_config.backoff_multiplier ** attempt)
+                        time.sleep(delay)
+                continue
+
+        # All retries failed
+        return ToolResult(
+            tool_id=request.tool_id,
+            success=False,
+            data=None,
+            error=last_error,
+            execution_time_ms=0.0,
+            timestamp=datetime.now(),
+            token_estimate=0,
+            retry_count=max_attempts
+        )
+
+    async def execute_async(self, request: ToolRequest) -> ToolResult:
+        """
+        Async version for concurrent execution.
+
+        Args:
+            request: ToolRequest with execution parameters
+
+        Returns:
+            ToolResult with execution outcome and metadata
+        """
+        if request.tool_id not in self._async_registry:
+            return ToolResult(
+                tool_id=request.tool_id,
+                success=False,
+                data=None,
+                error=f"Async tool '{request.tool_id}' not found in registry",
+                execution_time_ms=0.0,
+                timestamp=datetime.now(),
+                token_estimate=0
+            )
+
+        retry_config = request.retry_config
+        max_attempts = retry_config.max_attempts if retry_config else 1
+        last_error = None
+
+        for attempt in range(max_attempts):
+            try:
+                start = time.perf_counter()
+
+                # Execute async tool with timeout
+                func = self._async_registry[request.tool_id]
+                result = await asyncio.wait_for(
+                    func(**request.parameters),
+                    timeout=request.timeout_seconds
+                )
+
+                execution_time = (time.perf_counter() - start) * 1000
+                token_estimate = self._estimate_tokens(result)
+
+                return ToolResult(
+                    tool_id=request.tool_id,
+                    success=True,
+                    data=result,
+                    error=None,
+                    execution_time_ms=execution_time,
+                    timestamp=datetime.now(),
+                    token_estimate=token_estimate,
+                    retry_count=attempt
+                )
+
+            except asyncio.TimeoutError:
+                last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
+                if attempt < max_attempts - 1 and retry_config:
+                    delay = (retry_config.initial_delay_ms / 1000) * \
+                            (retry_config.backoff_multiplier ** attempt)
+                    await asyncio.sleep(delay)
+                continue
+
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_attempts - 1 and retry_config:
+                    delay = (retry_config.initial_delay_ms / 1000) * \
+                            (retry_config.backoff_multiplier ** attempt)
+                    await asyncio.sleep(delay)
+                continue
+
+        return ToolResult(
+            tool_id=request.tool_id,
+            success=False,
+            data=None,
+            error=last_error,
+            execution_time_ms=0.0,
+            timestamp=datetime.now(),
+            token_estimate=0,
+            retry_count=max_attempts
+        )
+
+    def _execute_with_timeout(
+        self,
+        func: Callable,
+        params: Dict[str, Any],
+        timeout: int
+    ) -> Any:
+        """
+        Execute function with timeout.
+
+        Note: Unix-only implementation using signals.
+        For cross-platform, consider using threading.Timer or multiprocessing.
+        """
+        def timeout_handler(signum, frame):
+            raise TimeoutError(f"Tool execution exceeded {timeout}s")
+
+        # Set timeout alarm (Unix-only)
+        try:
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+
+            try:
+                result = func(**params)
+                signal.alarm(0)  # Cancel alarm
+                return result
+            finally:
+                signal.alarm(0)
+        except AttributeError:
+            # Windows doesn't have SIGALRM - just execute without timeout
+            # In production, use threading.Timer or concurrent.futures
+            return func(**params)
+
+    def _estimate_tokens(self, data: Any) -> int:
+        """
+        Rough token estimate using character count.
+        Rule of thumb: 1 token ≈ 4 characters for English text.
+
+        Args:
+            data: Data to estimate tokens for
+
+        Returns:
+            Estimated token count
+        """
+        if isinstance(data, str):
+            return len(data) // 4
+        elif isinstance(data, (dict, list)):
+            import json
+            text = json.dumps(data)
+            return len(text) // 4
+        else:
+            return len(str(data)) // 4
+
+    def list_tools(self) -> list[str]:
+        """Get list of registered tool IDs."""
+        return list(self._registry.keys())
+
+    def validate_tool(self, tool_id: str) -> bool:
+        """Check if tool is registered and available."""
+        return tool_id in self._registry or tool_id in self._async_registry
