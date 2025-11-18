@@ -112,10 +112,6 @@ class ContextMetrics(BaseModel):
     compression_latency_ms: float
     llm_inference_latency_ms: float
 
-    # Cost metrics (estimated)
-    estimated_cost_usd: Optional[float] = None
-    estimated_savings_usd: Optional[float] = None
-
     # Metadata
     tools_used: List[str] = Field(default_factory=list)
     compression_operations: List[CompressionResult] = Field(default_factory=list)

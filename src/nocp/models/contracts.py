@@ -126,9 +126,6 @@ class OptimizedContext(BaseModel):
     method_used: CompressionMethod
     compression_time_ms: float
 
-    # Cost analysis
-    estimated_cost_savings: float = Field(..., description="In USD")
-
     # Quality metrics
     semantic_similarity_score: Optional[float] = Field(
         None,

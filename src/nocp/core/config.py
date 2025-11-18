@@ -141,16 +141,6 @@ class ProxyConfig(BaseSettings):
         description="Anthropic API key for multi-cloud routing"
     )
 
-    # Cost Tracking (per 1M tokens in USD)
-    gemini_flash_input_cost: float = Field(
-        default=0.075,
-        description="Cost per 1M input tokens for Gemini 2.5 Flash"
-    )
-    gemini_flash_output_cost: float = Field(
-        default=0.30,
-        description="Cost per 1M output tokens for Gemini 2.5 Flash"
-    )
-
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
 
@@ -177,21 +167,6 @@ class ProxyConfig(BaseSettings):
         if tool_name and tool_name in self._compression_thresholds:
             return self._compression_thresholds[tool_name]
         return self.default_compression_threshold
-
-    def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """
-        Calculate estimated cost in USD for a request.
-
-        Args:
-            input_tokens: Number of input tokens
-            output_tokens: Number of output tokens
-
-        Returns:
-            Estimated cost in USD
-        """
-        input_cost = (input_tokens / 1_000_000) * self.gemini_flash_input_cost
-        output_cost = (output_tokens / 1_000_000) * self.gemini_flash_output_cost
-        return input_cost + output_cost
 
     def ensure_log_directory(self) -> None:
         """Ensure the metrics log directory exists."""

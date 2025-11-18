@@ -197,16 +197,8 @@ class HighEfficiencyProxyAgent:
                 agent_response.model_dump_json()
             )
 
-            # Calculate costs
-            estimated_cost = self.config.calculate_cost(
-                input_tokens=compressed_input_tokens,
-                output_tokens=raw_output_tokens,
-            )
-            baseline_cost = self.config.calculate_cost(
-                input_tokens=raw_input_tokens,
-                output_tokens=raw_output_tokens,
-            )
-            estimated_savings = baseline_cost - estimated_cost
+            # Calculate token savings
+            input_token_savings = raw_input_tokens - compressed_input_tokens
 
             # Create metrics
             metrics = ContextMetrics(
@@ -220,8 +212,6 @@ class HighEfficiencyProxyAgent:
                 total_latency_ms=total_latency_ms,
                 compression_latency_ms=compression_latency_ms,
                 llm_inference_latency_ms=total_latency_ms - compression_latency_ms - serialization_time,
-                estimated_cost_usd=estimated_cost,
-                estimated_savings_usd=estimated_savings,
                 tools_used=tools_used,
                 compression_operations=compression_operations,
             )
@@ -233,15 +223,16 @@ class HighEfficiencyProxyAgent:
             self.router.finalize_session(
                 persistent_ctx=persistent_ctx,
                 tokens_used=compressed_input_tokens + raw_output_tokens,
-                cost=estimated_cost,
+                cost=0.0,  # Cost tracking removed - focus on token efficiency
             )
 
             self.logger.info(
                 "request_processed",
                 transaction_id=transaction_id,
                 total_latency_ms=round(total_latency_ms, 2),
-                estimated_cost_usd=round(estimated_cost, 6),
-                estimated_savings_usd=round(estimated_savings, 6),
+                input_token_savings=input_token_savings,
+                output_token_savings=token_savings,
+                compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
             return serialized_output, metrics
