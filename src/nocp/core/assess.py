@@ -5,6 +5,7 @@ Optimizes context to reduce token usage before LLM calls.
 Implements semantic pruning, knowledge distillation, and history compaction.
 """
 
+import json
 import time
 from typing import List, Optional
 

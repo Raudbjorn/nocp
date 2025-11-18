@@ -271,21 +271,29 @@ Key metrics tracked:
 
 ### 4.3 Viewing Logs and Metrics
 
+**Note**: The following commands are planned for Phase 3 (Production Readiness) and are not yet implemented in the MVP:
+
 ```bash
-# View real-time logs
-./nocp logs --follow
+# View real-time logs (Phase 3)
+# ./nocp logs --follow
 
-# View specific time range
-./nocp logs --since "2025-11-18 10:00" --until "2025-11-18 12:00"
+# View specific time range (Phase 3)
+# ./nocp logs --since "2025-11-18 10:00" --until "2025-11-18 12:00"
 
-# Filter by level
-./nocp logs --level ERROR
+# Filter by level (Phase 3)
+# ./nocp logs --level ERROR
 
-# Export metrics
-./nocp metrics export --format json > metrics.json
+# Export metrics (Phase 3)
+# ./nocp metrics export --format json > metrics.json
 
-# View dashboard (if configured)
-./nocp dashboard
+# View dashboard (if configured) (Phase 3)
+# ./nocp dashboard
+```
+
+For MVP, use standard Python logging:
+```python
+import logging
+logging.basicConfig(level=logging.INFO)
 ```
 
 ---
@@ -381,8 +389,9 @@ RUN ./nocp setup
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD ./nocp health || exit 1
 
-# Run application
-CMD ["./nocp", "serve"]
+# Run application (Note: 'serve' command not yet implemented in MVP)
+# For now, use: CMD ["./nocp", "shell"] or implement a custom serve command
+CMD ["./nocp", "info"]
 ```
 
 **Build and run:**
@@ -487,8 +496,9 @@ export PATH="$HOME/.local/bin:$PATH"
 **Issue: Compression not reducing tokens**
 
 ```bash
-# Check logs for compression method selection
-./nocp logs --level DEBUG | grep "compression"
+# For MVP, use Python logging to debug (Phase 3 will add ./nocp logs command)
+# Enable debug mode when running
+./nocp run --debug examples/basic_usage.py
 
 # Adjust threshold
 export NOCP_COMPRESSION_THRESHOLD="5000"
@@ -551,14 +561,17 @@ export NOCP_ENABLE_COMPRESSION="false"
 ### 8.3 Dependency Management
 
 ```bash
-# Audit dependencies
-./nocp audit
+# Audit dependencies (Phase 3 - not yet implemented)
+# For MVP, use uv directly:
+uv pip list
+uv pip check
 
-# Update dependencies
-./nocp update
+# Update dependencies (Phase 3 - not yet implemented)
+# For MVP, edit pyproject.toml and re-run:
+./nocp setup
 
 # Pin versions in production
-# (Already handled by uv's lockfile)
+# (Already handled by uv's lockfile when using uv sync)
 ```
 
 ---

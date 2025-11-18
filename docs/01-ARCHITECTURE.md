@@ -197,6 +197,12 @@ LiteLLM provides unified interface to 100+ LLM providers:
 
 ```python
 from litellm import completion
+from pydantic import BaseModel
+
+# Define response schema
+class ResponseSchema(BaseModel):
+    result: str
+    confidence: float
 
 # Unified call format
 response = completion(
@@ -231,6 +237,9 @@ def select_model(optimized_context: OptimizedContext, complexity_score: float) -
 ### 4.1 Structured Logging Schema
 
 ```python
+from pydantic import BaseModel
+from datetime import datetime
+
 class TransactionLog(BaseModel):
     """Logged for every request"""
     timestamp: datetime

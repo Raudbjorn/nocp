@@ -2,6 +2,7 @@
 Pydantic models defining API contracts for all components.
 """
 
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -60,7 +61,6 @@ class ToolResult(BaseModel):
         if isinstance(self.data, str):
             return self.data
         elif isinstance(self.data, (dict, list)):
-            import json
             return json.dumps(self.data, indent=2)
         else:
             return str(self.data)

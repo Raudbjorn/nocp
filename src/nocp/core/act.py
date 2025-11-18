@@ -5,6 +5,8 @@ Manages tool registration and execution with retry logic and timeout handling.
 """
 
 import asyncio
+import json
+import logging
 import signal
 import time
 from datetime import datetime
@@ -12,6 +14,8 @@ from typing import Any, Callable, Dict, Optional
 
 from ..exceptions import ToolExecutionError
 from ..models.contracts import ToolRequest, ToolResult, ToolType
+
+logger = logging.getLogger(__name__)
 
 
 class ToolExecutor:
@@ -268,6 +272,10 @@ class ToolExecutor:
         except AttributeError:
             # Windows doesn't have SIGALRM - just execute without timeout
             # In production, use threading.Timer or concurrent.futures
+            logger.warning(
+                "Tool execution timeout is not supported on Windows. "
+                "Running without a timeout."
+            )
             return func(**params)
 
     def _estimate_tokens(self, data: Any) -> int:
@@ -284,7 +292,6 @@ class ToolExecutor:
         if isinstance(data, str):
             return len(data) // 4
         elif isinstance(data, (dict, list)):
-            import json
             text = json.dumps(data)
             return len(text) // 4
         else:

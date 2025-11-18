@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Bootstrap script to ensure uv is available.
 
