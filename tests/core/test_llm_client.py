@@ -44,8 +44,9 @@ class TestLLMClient:
                 # This import will fail
                 from nocp.llm.client import LLMClient
                 LLMClient()
-            # The error should mention litellm
-            # Note: This test might need adjustment based on actual implementation
+            # The error should mention litellm and installation instructions
+            error_message = str(exc_info.value).lower()
+            assert "litellm" in error_message or "install" in error_message
 
     @patch('nocp.llm.client.litellm')
     def test_complete_basic(self, mock_litellm):

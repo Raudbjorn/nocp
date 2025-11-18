@@ -76,11 +76,11 @@ class LLMClient:
             # Enable caching for token counting
             litellm.cache = None  # Disable by default, can be enabled
 
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "litellm is required for LLMClient. "
                 "Install with: pip install litellm"
-            )
+            ) from e
 
     @retry(
         stop=stop_after_attempt(3),
@@ -187,7 +187,7 @@ class LLMClient:
                         raise LLMError(
                             f"Failed to parse response into {response_schema.__name__}: {e}",
                             details={"raw_content": content}
-                        )
+                        ) from e
                 else:
                     parsed_content = content
 
@@ -234,7 +234,7 @@ class LLMClient:
                     "error_type": type(e).__name__,
                     "fallbacks_tried": self.fallback_models,
                 }
-            )
+            ) from e
 
     def complete_with_tools(
         self,
@@ -303,7 +303,7 @@ class LLMClient:
             raise LLMError(
                 f"LLM tool completion failed: {str(e)}",
                 details={"model": model, "error_type": type(e).__name__}
-            )
+            ) from e
 
     def count_tokens(self, text: str, model: Optional[str] = None) -> int:
         """
@@ -336,7 +336,6 @@ class LLMClient:
         model = model or self.default_model
         try:
             # LiteLLM has model cost tracking
-            cost_info = self.litellm.get_model_info(model)
-            return cost_info
+            return self.litellm.get_model_info(model)
         except Exception:
             return {"model": model, "info": "unavailable"}

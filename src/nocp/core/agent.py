@@ -278,7 +278,7 @@ class HighEfficiencyProxyAgent:
         # Call LLM with or without LiteLLM
         if self.llm_client:
             # Use LiteLLM client
-            if tool_schemas:
+            if tool_schemas and len(tool_schemas) > 0:
                 response = self.llm_client.complete_with_tools(
                     messages=messages,
                     tools=tool_schemas,
@@ -339,9 +339,9 @@ class HighEfficiencyProxyAgent:
                     max_tokens=self.config.max_output_tokens,
                     temperature=0.7,
                 )
-                response_text = final_response.content
+                response_text = str(final_response.content) if final_response.content else ""
             else:
-                response_text = response.content
+                response_text = str(response.content) if response.content else ""
         else:
             # Handle genai response (backward compatibility)
             if hasattr(response, 'candidates') and (function_call := response.candidates[0].content.parts[0].function_call):
