@@ -57,10 +57,15 @@ class ToolExecutor:
 
         self._tools[definition.name] = (definition, callable_func)
 
+        # Register tool-specific compression threshold if specified
+        if definition.compression_threshold is not None:
+            self.config.register_tool_threshold(definition.name, definition.compression_threshold)
+
         self.logger.info(
             "tool_registered",
             tool_name=definition.name,
             param_count=len(definition.parameters),
+            custom_threshold=definition.compression_threshold,
         )
 
     def get_tool_definitions(self) -> List[ToolDefinition]:

@@ -125,14 +125,12 @@ class RequestRouter:
         )
 
         # Initialize transient context
-        transient_ctx = TransientContext(
+        return TransientContext(
             current_query=request.query,
             available_tool_names=[tool.name for tool in available_tools],
             conversation_history=[user_message],
             turn_number=persistent_ctx.total_turns + 1,
         )
-
-        return transient_ctx
 
     def _validate_token_budget(self, transient_ctx: TransientContext) -> None:
         """

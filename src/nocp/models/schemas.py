@@ -49,6 +49,10 @@ class ToolDefinition(BaseModel):
         default=None,
         description="Custom compression threshold for this tool's output"
     )
+    preferred_compression_method: Optional[Literal["semantic_pruning", "knowledge_distillation", "history_compaction", "none"]] = Field(
+        default=None,
+        description="Preferred compression method for this tool's output"
+    )
 
 
 class ToolExecutionResult(BaseModel):
@@ -76,6 +80,10 @@ class CompressionResult(BaseModel):
     compression_cost_tokens: int = Field(
         default=0,
         description="Tokens consumed by the compression process itself"
+    )
+    compression_time_ms: float = Field(
+        default=0.0,
+        description="Actual time spent on compression in milliseconds"
     )
     net_savings: int = Field(
         ...,

@@ -70,7 +70,7 @@ class HighEfficiencyProxyAgent:
         # Initialize core modules
         self.router = RequestRouter()
         self.tool_executor = ToolExecutor()
-        self.context_manager = ContextManager()
+        self.context_manager = ContextManager(tool_executor=self.tool_executor)
         self.output_serializer = OutputSerializer()
 
         self.logger.info(
@@ -164,7 +164,7 @@ class HighEfficiencyProxyAgent:
             # Calculate final metrics
             total_latency_ms = (time.perf_counter() - start_time) * 1000
             compression_latency_ms = sum(
-                comp.compression_cost_tokens * 0.01  # Rough approximation
+                comp.compression_time_ms
                 for comp in compression_operations
             )
 
@@ -269,13 +269,12 @@ class HighEfficiencyProxyAgent:
         # Call LLM with function calling
         response = self.model.generate_content(
             messages,
-            tools=tool_schemas if tool_schemas else None,
+            tools=tool_schemas or None,
             generation_config=generation_config,
         )
 
         # Check for function calls
-        if response.candidates[0].content.parts[0].function_call:
-            function_call = response.candidates[0].content.parts[0].function_call
+        if (function_call := response.candidates[0].content.parts[0].function_call):
             tool_name = function_call.name
             tool_params = dict(function_call.args)
 
@@ -301,27 +300,22 @@ class HighEfficiencyProxyAgent:
 
             # Continue agent loop with tool result (simplified - single turn)
             # In production, this would be recursive for multi-turn tool usage
-            messages_with_result = self._format_messages_for_gemini(transient_ctx, persistent_ctx)
-
             final_response = self.model.generate_content(
-                messages_with_result,
+                self._format_messages_for_gemini(transient_ctx, persistent_ctx),
                 generation_config=generation_config,
             )
 
             response_text = final_response.text
-
         else:
             response_text = response.text
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
-        agent_response = AgentResponse(
+        return AgentResponse(
             answer=response_text,
             tool_results_summary=[f"Used tool: {t}" for t in tools_used],
             confidence=0.9,
         )
-
-        return agent_response
 
     def _format_messages_for_gemini(
         self,
@@ -338,13 +332,13 @@ class HighEfficiencyProxyAgent:
         Returns:
             List of message dictionaries
         """
-        messages = []
-
         # Add system instructions
-        messages.append({
-            "role": "user",
-            "parts": [{"text": persistent_ctx.system_instructions}],
-        })
+        messages = [
+            {
+                "role": "user",
+                "parts": [{"text": persistent_ctx.system_instructions}],
+            }
+        ]
 
         # Add conversation history
         for msg in transient_ctx.conversation_history:

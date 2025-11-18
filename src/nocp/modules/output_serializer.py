@@ -78,9 +78,9 @@ class OutputSerializer:
         else:
             serialized = self._serialize_to_json(response_dict)
 
-        # Calculate token savings vs baseline JSON
+        # Calculate token savings vs baseline compact JSON
         baseline_tokens = self.token_counter.count_text(
-            self._serialize_to_json(response_dict)
+            self._serialize_to_compact_json(response_dict)
         )
         actual_tokens = self.token_counter.count_text(serialized)
         token_savings = baseline_tokens - actual_tokens
@@ -145,7 +145,7 @@ class OutputSerializer:
         checks = 0
 
         # Check 1: Presence of arrays (TOON excels at arrays)
-        array_count = sum(1 for v in data.values() if isinstance(v, list))
+        array_count = sum(isinstance(v, list) for v in data.values())
         if array_count > 0:
             score += 0.4
         checks += 1
@@ -158,7 +158,7 @@ class OutputSerializer:
 
         # Check 3: Uniform arrays (arrays with consistent structure)
         uniform_arrays = self._count_uniform_arrays(data)
-        total_arrays = sum(1 for v in data.values() if isinstance(v, list))
+        total_arrays = sum(isinstance(v, list) for v in data.values())
         if total_arrays > 0:
             uniformity_ratio = uniform_arrays / total_arrays
             score += 0.3 * uniformity_ratio
@@ -280,8 +280,8 @@ class OutputSerializer:
 
         return {
             "total_fields": len(data),
-            "array_fields": sum(1 for v in data.values() if isinstance(v, list)),
-            "nested_objects": sum(1 for v in data.values() if isinstance(v, dict)),
+            "array_fields": sum(isinstance(v, list) for v in data.values()),
+            "nested_objects": sum(isinstance(v, dict) for v in data.values()),
             "max_depth": self._get_max_depth(data),
             "tabularity_score": self._calculate_tabularity(data),
             "recommended_format": self._negotiate_format(data),

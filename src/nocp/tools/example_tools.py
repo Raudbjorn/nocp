@@ -25,9 +25,7 @@ def search_database(query: str, limit: int = 10) -> str:
         Verbose search results
     """
     # Simulate verbose database results
-    results = []
-    for i in range(min(limit, 5)):
-        results.append(f"""
+    results = [f"""
         Result {i+1}:
         Title: Product {i+1} - {query} Edition
         Description: This is a detailed description of product {i+1} that matches your search query '{query}'.
@@ -56,7 +54,7 @@ def search_database(query: str, limit: int = 10) -> str:
 
         Availability: In stock - Ships within 24 hours
         Customer Rating: 4.{5+i}/5.0 based on {100+i*50} reviews
-        """)
+        """ for i in range(min(limit, 5))]
 
     return "\n\n".join(results)
 
@@ -268,6 +266,7 @@ def create_search_database_tool() -> tuple[ToolDefinition, Callable]:
             ),
         ],
         compression_threshold=3000,  # Custom threshold for this tool
+        preferred_compression_method="semantic_pruning",  # Explicit method for database results
     )
 
     return definition, search_database
@@ -298,6 +297,7 @@ def create_analyze_data_tool() -> tuple[ToolDefinition, Callable]:
             ),
         ],
         compression_threshold=4000,
+        preferred_compression_method="knowledge_distillation",  # Explicit method for analytical outputs
     )
 
     return definition, analyze_data
@@ -322,6 +322,7 @@ def create_fetch_document_tool() -> tuple[ToolDefinition, Callable]:
             ),
         ],
         compression_threshold=5000,
+        preferred_compression_method="semantic_pruning",  # Explicit method for document retrieval
     )
 
     return definition, fetch_document

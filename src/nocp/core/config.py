@@ -123,6 +123,19 @@ class ProxyConfig(BaseSettings):
         description="Cost per 1M output tokens for Gemini 2.5 Flash"
     )
 
+    # Tool-specific compression thresholds (runtime registry)
+    _compression_thresholds: Dict[str, int] = {}
+
+    def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
+        """
+        Register a tool-specific compression threshold.
+
+        Args:
+            tool_name: Name of the tool
+            threshold: Compression threshold in tokens
+        """
+        self._compression_thresholds[tool_name] = threshold
+
     def get_compression_threshold(self, tool_name: Optional[str] = None) -> int:
         """
         Get compression threshold for a specific tool or default.
@@ -133,7 +146,8 @@ class ProxyConfig(BaseSettings):
         Returns:
             Compression threshold in tokens
         """
-        # In future, this could load tool-specific thresholds from a config file
+        if tool_name and tool_name in self._compression_thresholds:
+            return self._compression_thresholds[tool_name]
         return self.default_compression_threshold
 
     def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
@@ -153,7 +167,12 @@ class ProxyConfig(BaseSettings):
 
     def ensure_log_directory(self) -> None:
         """Ensure the metrics log directory exists."""
-        self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
+        if (
+            self.metrics_log_file is not None
+            and isinstance(self.metrics_log_file, Path)
+            and self.metrics_log_file.parent is not None
+        ):
+            self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
 
 
 # Global configuration instance

@@ -49,26 +49,34 @@ class TokenCounter:
         except Exception as e:
             # Fallback to character-based estimation if API fails
             # Rough approximation: ~4 characters per token
-            estimated = len(text) // 4
-            return estimated
+            return len(text) // 4
 
     def count_messages(self, messages: List[Dict[str, Any]]) -> int:
         """
         Count tokens in a list of messages.
 
         Args:
-            messages: List of message dictionaries with 'role' and 'content'
+            messages: List of message dictionaries. Each message should contain a 'content' key,
+                      but alternative keys like 'text', 'message', etc. are also supported.
 
         Returns:
             Total number of tokens
         """
+        def extract_content(msg: Dict[str, Any]) -> str:
+            # Try common keys for message content
+            for key in ("content", "text", "message", "body"):
+                if key in msg and isinstance(msg[key], str):
+                    return msg[key]
+            # If no valid key found, return empty string
+            return ""
+
         try:
-            # Format messages for Gemini
-            contents = [msg.get("content", "") for msg in messages]
+            # Format messages for Gemini, supporting alternative schemas
+            contents = [extract_content(msg) for msg in messages]
             combined_text = "\n".join(contents)
             return self.count_text(combined_text)
         except Exception as e:
-            return sum(len(msg.get("content", "")) // 4 for msg in messages)
+            return sum(len(extract_content(msg)) // 4 for msg in messages)
 
     def count_structured(self, data: Dict[str, Any]) -> int:
         """
