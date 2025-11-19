@@ -15,7 +15,7 @@ Configuration precedence (highest to lowest):
 import os
 import sys
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, ClassVar, FrozenSet
 from pathlib import Path
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
@@ -116,6 +116,13 @@ class ProxyConfig(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    # Secret fields that should be excluded from exports by default
+    SECRET_FIELDS: ClassVar[FrozenSet[str]] = frozenset({
+        'gemini_api_key',
+        'openai_api_key',
+        'anthropic_api_key',
+    })
 
     # Gemini API Configuration
     gemini_api_key: str = Field(..., description="Google Gemini API key")

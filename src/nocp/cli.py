@@ -272,6 +272,169 @@ def info():
     console.print(panel)
 
 
+# Configuration management subcommand group
+config_app = typer.Typer(help="Configuration management commands")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("export")
+def config_export(
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output file path (default: .nocp/config.yaml)"
+    ),
+    include_secrets: bool = typer.Option(
+        False,
+        "--include-secrets",
+        help="Include API keys in export (WARNING: sensitive data)"
+    ),
+):
+    """
+    Export current configuration to YAML file.
+
+    By default, API keys and secrets are excluded for security.
+    Use --include-secrets to include them (not recommended for sharing).
+    """
+    from .core.config import get_config
+    from .utils.config_export import export_config
+
+    try:
+        config = get_config()
+        output_path = export_config(config, output, include_secrets)
+
+        console.print(f"[bold green]✓[/bold green] Configuration exported to: {output_path}")
+
+        if not include_secrets:
+            console.print("[dim]Note: API keys excluded. Use --include-secrets to include them.[/dim]")
+
+    except Exception as e:
+        console.print(f"[bold red]✗[/bold red] Export failed: {e}")
+        sys.exit(1)
+
+
+@config_app.command("load")
+def config_load(
+    config_file: Path = typer.Argument(..., help="Path to configuration YAML file"),
+):
+    """
+    Load and validate configuration from YAML file.
+
+    This loads the configuration and displays it for verification.
+    To actually use this config, set it as your environment or .env file.
+    """
+    import yaml
+    from pydantic import ValidationError
+    from .utils.config_export import import_config
+
+    try:
+        config = import_config(config_file)
+
+        console.print(f"[bold green]✓[/bold green] Configuration loaded from: {config_file}")
+        console.print("\n[bold]Configuration Summary:[/bold]")
+
+        # Display key settings
+        from rich.table import Table
+
+        table = Table(show_header=False, box=None)
+        table.add_column("Setting", style="cyan")
+        table.add_column("Value", style="yellow")
+
+        # Show important settings
+        table.add_row("Gemini Model", config.gemini_model)
+        table.add_row("Student Model", config.student_summarizer_model)
+        table.add_row("Default Output Format", config.default_output_format)
+        table.add_row("Log Level", config.log_level)
+        table.add_row("Compression Threshold", str(config.default_compression_threshold))
+
+        console.print(table)
+
+    except FileNotFoundError as e:
+        console.print(f"[bold red]✗[/bold red] {e}")
+        sys.exit(1)
+    except (ValidationError, yaml.YAMLError) as e:
+        console.print(f"[bold red]✗[/bold red] Invalid configuration file: {e}")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]✗[/bold red] Load failed: {e}")
+        sys.exit(1)
+
+
+@config_app.command("show")
+def config_show():
+    """
+    Display current configuration settings.
+
+    Shows all non-secret configuration values currently in use.
+    """
+    from .core.config import get_config, ProxyConfig
+
+    try:
+        config = get_config()
+
+        console.print("[bold]Current Configuration:[/bold]\n")
+
+        from rich.table import Table
+
+        table = Table(title="Active Settings")
+        table.add_column("Setting", style="cyan", no_wrap=True)
+        table.add_column("Value", style="yellow")
+
+        config_dict = config.model_dump(
+            exclude=ProxyConfig.SECRET_FIELDS,
+            exclude_none=True
+        )
+
+        for key, value in sorted(config_dict.items()):
+            # Skip internal fields
+            if key.startswith('_'):
+                continue
+            table.add_row(key, str(value))
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[bold red]✗[/bold red] Failed to load config: {e}")
+        sys.exit(1)
+
+
+@config_app.command("diff")
+def config_diff(
+    config1: Path = typer.Argument(..., help="First configuration file"),
+    config2: Path = typer.Argument(..., help="Second configuration file"),
+):
+    """
+    Compare two configuration files and show differences.
+
+    Useful for debugging configuration changes or comparing environments
+    (e.g., dev vs staging vs production).
+    """
+    import yaml
+    from pydantic import ValidationError
+    from .utils.config_export import import_config, print_config_diff
+
+    try:
+        cfg1 = import_config(config1)
+        cfg2 = import_config(config2)
+
+        console.print(f"\n[bold]Comparing:[/bold]")
+        console.print(f"  Config 1: {config1}")
+        console.print(f"  Config 2: {config2}\n")
+
+        print_config_diff(cfg1, cfg2)
+
+    except FileNotFoundError as e:
+        console.print(f"[bold red]✗[/bold red] {e}")
+        sys.exit(1)
+    except (ValidationError, yaml.YAMLError) as e:
+        console.print(f"[bold red]✗[/bold red] Invalid configuration file: {e}")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]✗[/bold red] Diff failed: {e}")
+        sys.exit(1)
+
+
 def main():
     """Main entry point for the CLI."""
     app()

@@ -15,8 +15,8 @@ from ..exceptions import SerializationError
 from ..models.contracts import (
     SerializationRequest,
     SerializedOutput,
-    SerializationFormat,
 )
+from ..models.enums import OutputFormat
 from ..serializers.toon import TOONEncoder
 from ..utils.logging import articulate_logger
 
@@ -53,7 +53,7 @@ class OutputSerializer:
 
         # Step 1: Determine optimal format
         if request.force_format:
-            format_used = SerializationFormat(request.force_format)
+            format_used = OutputFormat(request.force_format)
         else:
             format_used = self.negotiate_format(request.data)
 
@@ -61,7 +61,7 @@ class OutputSerializer:
         start_time = time.perf_counter()
 
         try:
-            if format_used == SerializationFormat.TOON:
+            if format_used == OutputFormat.TOON:
                 serialized = self.toon_encoder.encode(
                     request.data,
                     length_marker="#" if request.include_length_markers else ""
@@ -78,7 +78,7 @@ class OutputSerializer:
                 indent=None,
                 separators=(',', ':')
             )
-            format_used = SerializationFormat.COMPACT_JSON
+            format_used = OutputFormat.COMPACT_JSON
 
         serialization_time = (time.perf_counter() - start_time) * 1000
 
@@ -93,7 +93,7 @@ class OutputSerializer:
         if request.validate_output:
             try:
                 # Attempt to deserialize
-                if format_used == SerializationFormat.COMPACT_JSON:
+                if format_used == OutputFormat.COMPACT_JSON:
                     json.loads(serialized)
                 # TOON validation skipped in MVP (would need full decoder)
             except Exception:
@@ -122,7 +122,7 @@ class OutputSerializer:
             schema_complexity=self._assess_complexity(request.data)
         )
 
-    def negotiate_format(self, model: BaseModel) -> SerializationFormat:
+    def negotiate_format(self, model: BaseModel) -> OutputFormat:
         """
         Analyze Pydantic model to select optimal format.
 
@@ -136,7 +136,7 @@ class OutputSerializer:
             model: Pydantic model to analyze
 
         Returns:
-            Selected SerializationFormat
+            Selected OutputFormat
         """
         model_dict = model.model_dump()
 
@@ -144,13 +144,13 @@ class OutputSerializer:
         for value in model_dict.values():
             if isinstance(value, list) and len(value) > 5:
                 if self._is_uniform_list(value):
-                    return SerializationFormat.TOON
+                    return OutputFormat.TOON
 
         # Check nesting depth
         if self._get_nesting_depth(model_dict) > 3:
-            return SerializationFormat.COMPACT_JSON
+            return OutputFormat.COMPACT_JSON
 
-        return SerializationFormat.COMPACT_JSON  # Safe default
+        return OutputFormat.COMPACT_JSON  # Safe default
 
     def _is_uniform_list(self, arr: List[Any]) -> bool:
         """Check if list is uniform (same structure)."""
