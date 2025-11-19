@@ -6,7 +6,8 @@ which is fundamental to the dynamic compression policy.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import google.generativeai as genai
 
 from ..core.config import get_config
@@ -20,7 +21,7 @@ class TokenCounter:
     enabling the agent to measure token usage before submission.
     """
 
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self, model_name: str | None = None):
         """
         Initialize token counter.
 
@@ -47,12 +48,12 @@ class TokenCounter:
         try:
             result = self.model.count_tokens(text)
             return result.total_tokens
-        except Exception as e:
+        except Exception:
             # Fallback to character-based estimation if API fails
             # Rough approximation: ~4 characters per token
             return len(text) // 4
 
-    def count_messages(self, messages: List[Dict[str, Any]]) -> int:
+    def count_messages(self, messages: list[dict[str, Any]]) -> int:
         """
         Count tokens in a list of messages.
 
@@ -63,7 +64,8 @@ class TokenCounter:
         Returns:
             Total number of tokens
         """
-        def extract_content(msg: Dict[str, Any]) -> str:
+
+        def extract_content(msg: dict[str, Any]) -> str:
             # Try common keys for message content
             for key in ("content", "text", "message", "body"):
                 if key in msg and isinstance(msg[key], str):
@@ -76,10 +78,10 @@ class TokenCounter:
             contents = [extract_content(msg) for msg in messages]
             combined_text = "\n".join(contents)
             return self.count_text(combined_text)
-        except Exception as e:
+        except Exception:
             return sum(len(extract_content(msg)) // 4 for msg in messages)
 
-    def count_structured(self, data: Dict[str, Any]) -> int:
+    def count_structured(self, data: dict[str, Any]) -> int:
         """
         Count tokens in structured data (dict/JSON).
 
@@ -92,7 +94,7 @@ class TokenCounter:
         try:
             json_str = json.dumps(data)
             return self.count_text(json_str)
-        except Exception as e:
+        except Exception:
             # Fallback estimation
             return len(str(data)) // 4
 
@@ -100,7 +102,7 @@ class TokenCounter:
         self,
         current_tokens: int,
         additional_tokens: int,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> bool:
         """
         Check if additional tokens will fit in the context window.
@@ -120,7 +122,7 @@ class TokenCounter:
     def get_budget_remaining(
         self,
         current_tokens: int,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> int:
         """
         Get remaining token budget.

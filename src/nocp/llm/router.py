@@ -7,7 +7,6 @@ Implements intelligent model selection based on:
 - Tiered model configuration
 """
 
-from typing import Dict, List, Optional
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -15,15 +14,17 @@ from pydantic import BaseModel, Field
 
 class ModelTier(str, Enum):
     """Model tier categories based on capability and cost."""
+
     ULTRA_CHEAP = "ultra_cheap"  # For simple summarization, basic tasks
-    CHEAP = "cheap"              # For most compression tasks
-    STANDARD = "standard"        # For general agent tasks
-    PREMIUM = "premium"          # For complex reasoning
-    FLAGSHIP = "flagship"        # For most demanding tasks
+    CHEAP = "cheap"  # For most compression tasks
+    STANDARD = "standard"  # For general agent tasks
+    PREMIUM = "premium"  # For complex reasoning
+    FLAGSHIP = "flagship"  # For most demanding tasks
 
 
 class ModelConfig(BaseModel):
     """Configuration for a specific model."""
+
     name: str = Field(..., description="Model name in LiteLLM format")
     tier: ModelTier
     input_cost_per_million: float = Field(..., description="Cost per 1M input tokens (USD)")
@@ -36,11 +37,12 @@ class ModelConfig(BaseModel):
 
 class RequestComplexity(str, Enum):
     """Complexity levels for routing decisions."""
-    TRIVIAL = "trivial"      # Simple compression, summarization
-    SIMPLE = "simple"        # Basic tool usage, Q&A
-    MODERATE = "moderate"    # Multi-step reasoning
-    COMPLEX = "complex"      # Complex tool orchestration
-    EXPERT = "expert"        # Advanced reasoning, planning
+
+    TRIVIAL = "trivial"  # Simple compression, summarization
+    SIMPLE = "simple"  # Basic tool usage, Q&A
+    MODERATE = "moderate"  # Multi-step reasoning
+    COMPLEX = "complex"  # Complex tool orchestration
+    EXPERT = "expert"  # Advanced reasoning, planning
 
 
 class ModelRouter:
@@ -62,10 +64,8 @@ class ModelRouter:
     """
 
     def __init__(self):
-        self.models: Dict[str, ModelConfig] = {}
-        self._tier_mapping: Dict[ModelTier, List[str]] = {
-            tier: [] for tier in ModelTier
-        }
+        self.models: dict[str, ModelConfig] = {}
+        self._tier_mapping: dict[ModelTier, list[str]] = {tier: [] for tier in ModelTier}
         self._initialize_defaults()
 
     def _initialize_defaults(self):
@@ -174,7 +174,7 @@ class ModelRouter:
         complexity: RequestComplexity = RequestComplexity.SIMPLE,
         requires_tools: bool = False,
         requires_structured_output: bool = False,
-        max_input_tokens: Optional[int] = None,
+        max_input_tokens: int | None = None,
         prefer_cheap: bool = True,
     ) -> str:
         """
@@ -223,14 +223,10 @@ class ModelRouter:
 
         # Sort by cost (input + output average)
         if prefer_cheap:
-            candidates.sort(
-                key=lambda m: m.input_cost_per_million + m.output_cost_per_million
-            )
+            candidates.sort(key=lambda m: m.input_cost_per_million + m.output_cost_per_million)
         else:
             # Prefer more capable models
-            candidates.sort(
-                key=lambda m: -(m.input_cost_per_million + m.output_cost_per_million)
-            )
+            candidates.sort(key=lambda m: -(m.input_cost_per_million + m.output_cost_per_million))
 
         return candidates[0].name
 
@@ -250,8 +246,8 @@ class ModelRouter:
         tier: ModelTier,
         requires_tools: bool,
         requires_structured_output: bool,
-        max_input_tokens: Optional[int],
-    ) -> List[ModelConfig]:
+        max_input_tokens: int | None,
+    ) -> list[ModelConfig]:
         """Search adjacent tiers for suitable models."""
         tier_order = [
             ModelTier.ULTRA_CHEAP,
@@ -349,7 +345,7 @@ class ModelRouter:
         else:
             return RequestComplexity.EXPERT
 
-    def get_model_info(self, model_name: str) -> Optional[ModelConfig]:
+    def get_model_info(self, model_name: str) -> ModelConfig | None:
         """Get configuration for a specific model."""
         return self.models.get(model_name)
 

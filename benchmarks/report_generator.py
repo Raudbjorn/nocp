@@ -10,21 +10,19 @@ Generates:
 
 import json
 import logging
-from pathlib import Path
-from typing import List, Dict, Any
 from datetime import datetime
-from dataclasses import asdict
+from pathlib import Path
+from typing import Any
 
 # Set up logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
 def generate_ascii_bar_chart(
-    data: Dict[str, float],
+    data: dict[str, float],
     width: int = 50,
     title: str = "Chart",
 ) -> str:
@@ -58,8 +56,8 @@ def generate_ascii_bar_chart(
 
 
 def generate_markdown_table(
-    headers: List[str],
-    rows: List[List[Any]],
+    headers: list[str],
+    rows: list[list[Any]],
 ) -> str:
     """
     Generate markdown table.
@@ -98,7 +96,7 @@ class ReportGenerator:
         """
         self.results_dir = Path(results_dir)
 
-    def load_results(self) -> List[Dict[str, Any]]:
+    def load_results(self) -> list[dict[str, Any]]:
         """
         Load all benchmark results from directory.
 
@@ -112,15 +110,15 @@ class ReportGenerator:
                 continue
 
             try:
-                with open(result_file, 'r') as f:
+                with open(result_file) as f:
                     result = json.load(f)
                     results.append(result)
-            except (json.JSONDecodeError, IOError, OSError) as e:
+            except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"Failed to load or parse {result_file}: {e}")
 
         return results
 
-    def load_summary(self) -> Dict[str, Any]:
+    def load_summary(self) -> dict[str, Any]:
         """
         Load summary report.
 
@@ -132,10 +130,10 @@ class ReportGenerator:
         if not summary_file.exists():
             return {}
 
-        with open(summary_file, 'r') as f:
+        with open(summary_file) as f:
             return json.load(f)
 
-    def generate_overview_section(self, summary: Dict[str, Any]) -> str:
+    def generate_overview_section(self, summary: dict[str, Any]) -> str:
         """
         Generate overview section of report.
 
@@ -162,50 +160,58 @@ class ReportGenerator:
 
         if "input_token_reduction" in metrics:
             m = metrics["input_token_reduction"]
-            rows.append([
-                "Input Token Reduction (%)",
-                f"{m['mean']:.1f}",
-                f"{m['median']:.1f}",
-                f"{m['min']:.1f}",
-                f"{m['max']:.1f}",
-            ])
+            rows.append(
+                [
+                    "Input Token Reduction (%)",
+                    f"{m['mean']:.1f}",
+                    f"{m['median']:.1f}",
+                    f"{m['min']:.1f}",
+                    f"{m['max']:.1f}",
+                ]
+            )
 
         if "output_token_reduction" in metrics:
             m = metrics["output_token_reduction"]
-            rows.append([
-                "Output Token Reduction (%)",
-                f"{m['mean']:.1f}",
-                f"{m['median']:.1f}",
-                f"{m['min']:.1f}",
-                f"{m['max']:.1f}",
-            ])
+            rows.append(
+                [
+                    "Output Token Reduction (%)",
+                    f"{m['mean']:.1f}",
+                    f"{m['median']:.1f}",
+                    f"{m['min']:.1f}",
+                    f"{m['max']:.1f}",
+                ]
+            )
 
         if "cost_reduction" in metrics:
             m = metrics["cost_reduction"]
-            rows.append([
-                "Cost Reduction (%)",
-                f"{m['mean']:.1f}",
-                f"{m['median']:.1f}",
-                f"{m['min']:.1f}",
-                f"{m['max']:.1f}",
-            ])
+            rows.append(
+                [
+                    "Cost Reduction (%)",
+                    f"{m['mean']:.1f}",
+                    f"{m['median']:.1f}",
+                    f"{m['min']:.1f}",
+                    f"{m['max']:.1f}",
+                ]
+            )
 
         if "latency_overhead_ratio" in metrics:
             m = metrics["latency_overhead_ratio"]
-            rows.append([
-                "Latency Overhead Ratio",
-                f"{m['mean']:.2f}x",
-                f"{m['median']:.2f}x",
-                f"{m['min']:.2f}x",
-                f"{m['max']:.2f}x",
-            ])
+            rows.append(
+                [
+                    "Latency Overhead Ratio",
+                    f"{m['mean']:.2f}x",
+                    f"{m['median']:.2f}x",
+                    f"{m['min']:.2f}x",
+                    f"{m['max']:.2f}x",
+                ]
+            )
 
         md += generate_markdown_table(headers, rows)
         md += "\n"
 
         return md
 
-    def generate_success_criteria_section(self, summary: Dict[str, Any]) -> str:
+    def generate_success_criteria_section(self, summary: dict[str, Any]) -> str:
         """
         Generate success criteria section.
 
@@ -238,22 +244,23 @@ class ReportGenerator:
             if key in criteria:
                 c = criteria[key]
                 status_emoji = "✅" if c["status"] == "PASS" else "⚠️"
-                rows.append([
-                    target,
-                    key.split("_")[1] if "_" in key else "",
-                    c["met"],
-                    c["total"],
-                    f"{c['percentage']:.0f}%",
-                    f"{status_emoji} {c['status']}",
-                ])
+                rows.append(
+                    [
+                        target,
+                        key.split("_")[1] if "_" in key else "",
+                        c["met"],
+                        c["total"],
+                        f"{c['percentage']:.0f}%",
+                        f"{status_emoji} {c['status']}",
+                    ]
+                )
 
         md += generate_markdown_table(headers, rows)
         md += "\n"
 
         # Overall assessment
         all_passed = all(
-            criteria.get(k, {}).get("status") == "PASS"
-            for k in criteria_targets.keys()
+            criteria.get(k, {}).get("status") == "PASS" for k in criteria_targets.keys()
         )
 
         if all_passed:
@@ -267,8 +274,8 @@ class ReportGenerator:
 
     def generate_scenario_breakdown_section(
         self,
-        summary: Dict[str, Any],
-        results: List[Dict[str, Any]],
+        summary: dict[str, Any],
+        results: list[dict[str, Any]],
     ) -> str:
         """
         Generate scenario breakdown section.
@@ -290,14 +297,17 @@ class ReportGenerator:
             md += f"**Number of benchmarks:** {scenario_data['count']}\n\n"
 
             # Get detailed results for this scenario
-            scenario_results = [
-                r for r in results
-                if r.get("benchmark_name") == scenario_name
-            ]
+            scenario_results = [r for r in results if r.get("benchmark_name") == scenario_name]
 
             if scenario_results:
                 # Create detailed table
-                headers = ["Size", "Input Reduction", "Output Reduction", "Cost Reduction", "Latency Ratio"]
+                headers = [
+                    "Size",
+                    "Input Reduction",
+                    "Output Reduction",
+                    "Cost Reduction",
+                    "Latency Ratio",
+                ]
                 rows = []
 
                 for result in sorted(scenario_results, key=lambda r: r.get("dataset_size", "")):
@@ -307,13 +317,15 @@ class ReportGenerator:
                         "large": "🔶",
                     }.get(result.get("dataset_size", ""), "")
 
-                    rows.append([
-                        f"{size_emoji} {result.get('dataset_size', 'N/A').title()}",
-                        f"{result.get('input_reduction_pct', 0):.1f}%",
-                        f"{result.get('output_reduction_pct', 0):.1f}%",
-                        f"{result.get('cost_reduction_pct', 0):.1f}%",
-                        f"{result.get('latency_overhead_ratio', 0):.2f}x",
-                    ])
+                    rows.append(
+                        [
+                            f"{size_emoji} {result.get('dataset_size', 'N/A').title()}",
+                            f"{result.get('input_reduction_pct', 0):.1f}%",
+                            f"{result.get('output_reduction_pct', 0):.1f}%",
+                            f"{result.get('cost_reduction_pct', 0):.1f}%",
+                            f"{result.get('latency_overhead_ratio', 0):.2f}x",
+                        ]
+                    )
 
                 md += generate_markdown_table(headers, rows)
                 md += "\n"
@@ -326,14 +338,13 @@ class ReportGenerator:
                 }
                 md += "```\n"
                 md += generate_ascii_bar_chart(
-                    chart_data,
-                    title=f"{scenario_name} - Input Token Reduction by Size"
+                    chart_data, title=f"{scenario_name} - Input Token Reduction by Size"
                 )
                 md += "```\n\n"
 
         return md
 
-    def generate_detailed_results_section(self, results: List[Dict[str, Any]]) -> str:
+    def generate_detailed_results_section(self, results: list[dict[str, Any]]) -> str:
         """
         Generate detailed results section.
 
@@ -362,25 +373,27 @@ class ReportGenerator:
         rows = []
 
         for result in results:
-            rows.append([
-                result.get("benchmark_name", "N/A"),
-                result.get("dataset_size", "N/A"),
-                f"{result.get('raw_input_tokens', 0):,}",
-                f"{result.get('optimized_input_tokens', 0):,}",
-                f"{result.get('input_reduction_pct', 0):.1f}%",
-                f"{result.get('raw_output_tokens', 0):,}",
-                f"{result.get('optimized_output_tokens', 0):,}",
-                f"{result.get('output_reduction_pct', 0):.1f}%",
-                f"${result.get('cost_savings_usd', 0):.4f}",
-                f"{result.get('latency_overhead_ratio', 0):.2f}x",
-            ])
+            rows.append(
+                [
+                    result.get("benchmark_name", "N/A"),
+                    result.get("dataset_size", "N/A"),
+                    f"{result.get('raw_input_tokens', 0):,}",
+                    f"{result.get('optimized_input_tokens', 0):,}",
+                    f"{result.get('input_reduction_pct', 0):.1f}%",
+                    f"{result.get('raw_output_tokens', 0):,}",
+                    f"{result.get('optimized_output_tokens', 0):,}",
+                    f"{result.get('output_reduction_pct', 0):.1f}%",
+                    f"${result.get('cost_savings_usd', 0):.4f}",
+                    f"{result.get('latency_overhead_ratio', 0):.2f}x",
+                ]
+            )
 
         md += generate_markdown_table(headers, rows)
         md += "\n"
 
         return md
 
-    def generate_kpi_tracking_section(self, summary: Dict[str, Any]) -> str:
+    def generate_kpi_tracking_section(self, summary: dict[str, Any]) -> str:
         """
         Generate KPI tracking section with charts.
 
@@ -414,7 +427,7 @@ class ReportGenerator:
 
             md += "```\n"
             chart_data = {
-                "Cost Reduction": metrics['cost_reduction']['mean'],
+                "Cost Reduction": metrics["cost_reduction"]["mean"],
                 "Target (40%)": 40.0,
             }
             md += generate_ascii_bar_chart(chart_data, title="Cost Reduction vs Target")
@@ -424,9 +437,9 @@ class ReportGenerator:
         if "latency_overhead_ratio" in metrics:
             md += "### Latency Overhead\n\n"
             md += f"**Average Latency Ratio:** {metrics['latency_overhead_ratio']['mean']:.2f}x\n\n"
-            md += f"**Target:** < 2.0x baseline\n\n"
+            md += "**Target:** < 2.0x baseline\n\n"
 
-            if metrics['latency_overhead_ratio']['mean'] < 2.0:
+            if metrics["latency_overhead_ratio"]["mean"] < 2.0:
                 md += "✅ **Status:** Within target\n\n"
             else:
                 md += "⚠️ **Status:** Exceeds target\n\n"
@@ -463,7 +476,7 @@ class ReportGenerator:
         # Save report
         output_path = self.results_dir / output_file
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(md)
 
         logger.info(f"Performance report generated: {output_path}")

@@ -2,11 +2,11 @@
 Pytest configuration and shared fixtures.
 """
 
-import pytest
 from datetime import datetime
 
-from nocp.core import ToolExecutor, ContextManager, OutputSerializer
-from nocp.models.contracts import ToolResult, ToolType
+import pytest
+from nocp.core import ContextManager, OutputSerializer, ToolExecutor
+from nocp.models.contracts import ToolResult
 
 
 @pytest.fixture
@@ -35,10 +35,7 @@ def tool_executor():
 @pytest.fixture
 def context_manager():
     """Create a ContextManager for testing."""
-    return ContextManager(
-        compression_threshold=1000,
-        enable_litellm=False  # Disable for testing
-    )
+    return ContextManager(compression_threshold=1000, enable_litellm=False)  # Disable for testing
 
 
 @pytest.fixture
@@ -57,5 +54,5 @@ def sample_tool_result():
         error=None,
         execution_time_ms=10.0,
         timestamp=datetime.now(),
-        token_estimate=50
+        token_estimate=50,
     )

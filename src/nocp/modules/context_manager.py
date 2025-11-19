@@ -10,12 +10,13 @@ This is the critical component that enforces the dynamic compression policy
 and Cost-of-Compression Calculus.
 """
 
-from typing import List, Optional, Literal
+from typing import Literal, Optional
+
 import google.generativeai as genai
 
-from ..models.schemas import ToolExecutionResult, CompressionResult
-from ..models.context import TransientContext, ConversationMessage, PersistentContext
 from ..core.config import get_config
+from ..models.context import ConversationMessage, PersistentContext, TransientContext
+from ..models.schemas import CompressionResult, ToolExecutionResult
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
 
@@ -32,7 +33,7 @@ class ContextManager:
     - Minimize input tokens while preserving semantic content
     """
 
-    def __init__(self, student_model: Optional[str] = None, tool_executor=None):
+    def __init__(self, student_model: str | None = None, tool_executor=None):
         """
         Initialize the context manager.
 
@@ -53,7 +54,7 @@ class ContextManager:
     def manage_tool_output(
         self,
         tool_result: ToolExecutionResult,
-    ) -> tuple[str, Optional[CompressionResult]]:
+    ) -> tuple[str, CompressionResult | None]:
         """
         Manage tool output through dynamic compression policy.
 
@@ -94,6 +95,7 @@ class ContextManager:
 
         # Execute compression with timing
         import time
+
         compression_start = time.perf_counter()
 
         compressed_output, compression_cost = self._apply_compression(
@@ -129,7 +131,9 @@ class ContextManager:
         compression_result = CompressionResult(
             original_tokens=raw_token_count,
             compressed_tokens=compressed_token_count,
-            compression_ratio=compressed_token_count / raw_token_count if raw_token_count > 0 else 1.0,
+            compression_ratio=(
+                compressed_token_count / raw_token_count if raw_token_count > 0 else 1.0
+            ),
             compression_method=compression_method,
             compression_cost_tokens=compression_cost,
             compression_time_ms=compression_time_ms,
@@ -170,7 +174,9 @@ class ContextManager:
                 method = tool_def.preferred_compression_method
                 if method == "semantic_pruning" and self.config.enable_semantic_pruning:
                     return "semantic_pruning"
-                elif method == "knowledge_distillation" and self.config.enable_knowledge_distillation:
+                elif (
+                    method == "knowledge_distillation" and self.config.enable_knowledge_distillation
+                ):
                     return "knowledge_distillation"
                 elif method == "history_compaction" and self.config.enable_history_compaction:
                     return "history_compaction"
@@ -179,7 +185,10 @@ class ContextManager:
 
         # Fallback to heuristics if no explicit preference or method is disabled
         # Check for RAG/database outputs (typically structured or have clear sections)
-        if any(keyword in tool_name.lower() for keyword in ["search", "rag", "database", "query"]) and self.config.enable_semantic_pruning:
+        if (
+            any(keyword in tool_name.lower() for keyword in ["search", "rag", "database", "query"])
+            and self.config.enable_semantic_pruning
+        ):
             return "semantic_pruning"
 
         # Default to knowledge distillation for unstructured content
@@ -280,10 +289,9 @@ Provide a structured summary with:
             summary = response.text
 
             # Calculate compression cost (prompt + response)
-            compression_cost = (
-                self.token_counter.count_text(prompt) +
-                self.token_counter.count_text(summary)
-            )
+            compression_cost = self.token_counter.count_text(
+                prompt
+            ) + self.token_counter.count_text(summary)
 
             return summary, compression_cost
 
@@ -329,10 +337,9 @@ Summary:
             )
 
             summary = response.text
-            compression_cost = (
-                self.token_counter.count_text(prompt) +
-                self.token_counter.count_text(summary)
-            )
+            compression_cost = self.token_counter.count_text(
+                prompt
+            ) + self.token_counter.count_text(summary)
 
             return summary, compression_cost
 
@@ -344,9 +351,9 @@ Summary:
     def compact_conversation_history(
         self,
         transient_ctx: TransientContext,
-        persistent_ctx: Optional['PersistentContext'] = None,
+        persistent_ctx: Optional["PersistentContext"] = None,
         keep_recent: int = 5,
-    ) -> Optional[CompressionResult]:
+    ) -> CompressionResult | None:
         """
         Compact conversation history with roll-up summarization.
 
@@ -379,15 +386,13 @@ Summary:
         recent_messages = transient_ctx.conversation_history[-keep_recent:]
 
         # Convert old messages to text
-        old_history_text = "\n\n".join(
-            f"{msg.role}: {msg.content}"
-            for msg in old_messages
-        )
+        old_history_text = "\n\n".join(f"{msg.role}: {msg.content}" for msg in old_messages)
 
         original_tokens = sum(msg.token_count or 0 for msg in old_messages)
 
         # Apply compaction with timing
         import time
+
         compression_start = time.perf_counter()
 
         # If persistent context has existing summary, do roll-up summarization
@@ -505,10 +510,9 @@ Unified Summary:
             )
 
             summary = response.text
-            compression_cost = (
-                self.token_counter.count_text(prompt) +
-                self.token_counter.count_text(summary)
-            )
+            compression_cost = self.token_counter.count_text(
+                prompt
+            ) + self.token_counter.count_text(summary)
 
             return summary, compression_cost
 

@@ -11,24 +11,20 @@ Compares optimized vs baseline pipeline performance across different scenarios:
 Generates comprehensive reports with metrics, charts, and analysis.
 """
 
+import json
+import statistics
 import sys
 import time
-import json
-import uuid
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
-import statistics
+from pathlib import Path
+from typing import Any, Literal
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from nocp.models.schemas import TransactionLog
-from nocp.models.context import TransientContext, PersistentContext, ConversationMessage
 from nocp.modules.context_manager import ContextManager
 from nocp.modules.output_serializer import OutputSerializer
-from nocp.core.config import get_config
 from nocp.utils.logging import get_logger
 from nocp.utils.token_counter import TokenCounter
 
@@ -71,7 +67,7 @@ class BenchmarkResult:
     meets_cost_reduction_target: bool  # >40%
 
     timestamp: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class BenchmarkRunner:
@@ -102,7 +98,7 @@ class BenchmarkRunner:
         self,
         input_data: str,
         output_data: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run baseline pipeline (no optimization).
 
@@ -125,10 +121,9 @@ class BenchmarkRunner:
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         # Calculate cost
-        cost_usd = (
-            (input_tokens / 1_000_000) * self.input_cost_per_1m +
-            (output_tokens / 1_000_000) * self.output_cost_per_1m
-        )
+        cost_usd = (input_tokens / 1_000_000) * self.input_cost_per_1m + (
+            output_tokens / 1_000_000
+        ) * self.output_cost_per_1m
 
         return {
             "input_tokens": input_tokens,
@@ -143,7 +138,7 @@ class BenchmarkRunner:
         input_data: str,
         output_data: Any,
         tool_name: str = "test_tool",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run optimized pipeline (with compression and serialization).
 
@@ -155,7 +150,7 @@ class BenchmarkRunner:
         Returns:
             Dictionary with metrics
         """
-        from nocp.models.schemas import ToolExecutionResult, SerializationRequest
+        from nocp.models.schemas import SerializationRequest, ToolExecutionResult
 
         start_time = time.perf_counter()
 
@@ -173,23 +168,23 @@ class BenchmarkRunner:
 
         compressed_input, compression_result = self.context_manager.manage_tool_output(tool_result)
         optimized_input_tokens = (
-            compression_result.compressed_tokens if compression_result
-            else raw_input_tokens
+            compression_result.compressed_tokens if compression_result else raw_input_tokens
         )
 
         # Apply output serialization (mock response)
         # In real scenario, this would be the structured LLM response
         # For benchmarking, we use the output_data directly
         if isinstance(output_data, dict):
-            from pydantic import BaseModel, create_model
             from typing import Any
+
+            from pydantic import BaseModel, create_model
 
             # Create dynamic model
             # Using Any for field types to handle complex nested structures
             DynamicModel = create_model(
-                'DynamicResponse',
+                "DynamicResponse",
                 __base__=BaseModel,
-                **{k: (Any, v) for k, v in output_data.items()}
+                **{k: (Any, v) for k, v in output_data.items()},
             )
             serialization_request = SerializationRequest(data=DynamicModel(**output_data))
             serialized = self.output_serializer.serialize(serialization_request)
@@ -203,10 +198,9 @@ class BenchmarkRunner:
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         # Calculate cost (using optimized tokens)
-        cost_usd = (
-            (optimized_input_tokens / 1_000_000) * self.input_cost_per_1m +
-            (optimized_output_tokens / 1_000_000) * self.output_cost_per_1m
-        )
+        cost_usd = (optimized_input_tokens / 1_000_000) * self.input_cost_per_1m + (
+            optimized_output_tokens / 1_000_000
+        ) * self.output_cost_per_1m
 
         return {
             "raw_input_tokens": raw_input_tokens,
@@ -258,25 +252,30 @@ class BenchmarkRunner:
         # Calculate metrics
         input_reduction_pct = (
             (baseline["input_tokens"] - optimized["optimized_input_tokens"])
-            / baseline["input_tokens"] * 100
-            if baseline["input_tokens"] > 0 else 0
+            / baseline["input_tokens"]
+            * 100
+            if baseline["input_tokens"] > 0
+            else 0
         )
 
         output_reduction_pct = (
             (baseline["output_tokens"] - optimized["optimized_output_tokens"])
-            / baseline["output_tokens"] * 100
-            if baseline["output_tokens"] > 0 else 0
+            / baseline["output_tokens"]
+            * 100
+            if baseline["output_tokens"] > 0
+            else 0
         )
 
         cost_reduction_pct = (
-            (baseline["cost_usd"] - optimized["cost_usd"])
-            / baseline["cost_usd"] * 100
-            if baseline["cost_usd"] > 0 else 0
+            (baseline["cost_usd"] - optimized["cost_usd"]) / baseline["cost_usd"] * 100
+            if baseline["cost_usd"] > 0
+            else 0
         )
 
         latency_overhead_ratio = (
             optimized["latency_ms"] / baseline["latency_ms"]
-            if baseline["latency_ms"] > 0 else float('inf')
+            if baseline["latency_ms"] > 0
+            else float("inf")
         )
 
         # Check success criteria
@@ -288,14 +287,16 @@ class BenchmarkRunner:
             optimized_input_tokens=optimized["optimized_input_tokens"],
             input_compression_ratio=(
                 optimized["optimized_input_tokens"] / baseline["input_tokens"]
-                if baseline["input_tokens"] > 0 else 0.0
+                if baseline["input_tokens"] > 0
+                else 0.0
             ),
             input_reduction_pct=input_reduction_pct,
             raw_output_tokens=baseline["output_tokens"],
             optimized_output_tokens=optimized["optimized_output_tokens"],
             output_compression_ratio=(
                 optimized["optimized_output_tokens"] / baseline["output_tokens"]
-                if baseline["output_tokens"] > 0 else 0.0
+                if baseline["output_tokens"] > 0
+                else 0.0
             ),
             output_reduction_pct=output_reduction_pct,
             baseline_latency_ms=baseline["latency_ms"],
@@ -311,7 +312,11 @@ class BenchmarkRunner:
             meets_cost_reduction_target=cost_reduction_pct >= 40,
             timestamp=datetime.utcnow().isoformat(),
             metadata={
-                "compression_method": optimized.get("compression_result", {}).compression_method if optimized.get("compression_result") else "none",
+                "compression_method": (
+                    optimized.get("compression_result", {}).compression_method
+                    if optimized.get("compression_result")
+                    else "none"
+                ),
             },
         )
 
@@ -338,7 +343,7 @@ class BenchmarkRunner:
         filename = f"{result.benchmark_name}_{result.dataset_size}_{int(time.time())}.json"
         filepath = self.output_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(asdict(result), f, indent=2)
 
         self.logger.info("benchmark_result_saved", filepath=str(filepath))
@@ -360,9 +365,9 @@ class BenchmarkSuite:
         """
         self.runner = BenchmarkRunner(output_dir)
         self.output_dir = Path(output_dir)
-        self.results: List[BenchmarkResult] = []
+        self.results: list[BenchmarkResult] = []
 
-    def run_all_benchmarks(self) -> List[BenchmarkResult]:
+    def run_all_benchmarks(self) -> list[BenchmarkResult]:
         """
         Run all benchmark scenarios.
 
@@ -370,9 +375,9 @@ class BenchmarkSuite:
             List of all benchmark results
         """
         from .test_datasets import (
-            generate_rag_dataset,
             generate_api_dataset,
             generate_database_dataset,
+            generate_rag_dataset,
         )
 
         self.results = []
@@ -421,7 +426,7 @@ class BenchmarkSuite:
 
         return self.results
 
-    def generate_summary_report(self) -> Dict[str, Any]:
+    def generate_summary_report(self) -> dict[str, Any]:
         """
         Generate summary report across all benchmarks.
 
@@ -513,9 +518,15 @@ class BenchmarkSuite:
         for scenario_name, scenario_results in by_scenario.items():
             summary["results_by_scenario"][scenario_name] = {
                 "count": len(scenario_results),
-                "avg_input_reduction": statistics.mean(r.input_reduction_pct for r in scenario_results),
-                "avg_output_reduction": statistics.mean(r.output_reduction_pct for r in scenario_results),
-                "avg_cost_reduction": statistics.mean(r.cost_reduction_pct for r in scenario_results),
+                "avg_input_reduction": statistics.mean(
+                    r.input_reduction_pct for r in scenario_results
+                ),
+                "avg_output_reduction": statistics.mean(
+                    r.output_reduction_pct for r in scenario_results
+                ),
+                "avg_cost_reduction": statistics.mean(
+                    r.cost_reduction_pct for r in scenario_results
+                ),
             }
 
         return summary
@@ -542,7 +553,7 @@ def main():
 
     # Save summary
     summary_file = suite.output_dir / "summary_report.json"
-    with open(summary_file, 'w') as f:
+    with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2)
 
     print("Summary Report")
@@ -558,9 +569,11 @@ def main():
     print()
 
     print("Success Criteria:")
-    for criterion, data in summary['success_criteria'].items():
-        status_symbol = "✓" if data['status'] == "PASS" else "✗"
-        print(f"  {status_symbol} {criterion}: {data['met']}/{data['total']} ({data['percentage']:.0f}%) - {data['status']}")
+    for criterion, data in summary["success_criteria"].items():
+        status_symbol = "✓" if data["status"] == "PASS" else "✗"
+        print(
+            f"  {status_symbol} {criterion}: {data['met']}/{data['total']} ({data['percentage']:.0f}%) - {data['status']}"
+        )
     print()
 
     print(f"Summary saved to: {summary_file}")

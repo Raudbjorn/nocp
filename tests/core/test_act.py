@@ -15,19 +15,17 @@ import asyncio
 import json
 import time
 from datetime import datetime
-from unittest.mock import Mock, patch
 
 import pytest
-from pydantic import ValidationError
-
 from nocp.core.act import ToolExecutor
 from nocp.exceptions import ToolExecutionError
 from nocp.models.contracts import (
+    RetryConfig,
     ToolRequest,
     ToolResult,
     ToolType,
-    RetryConfig,
 )
+from pydantic import ValidationError
 
 
 class TestToolExecutor:
@@ -46,6 +44,7 @@ class TestToolExecutor:
 
     def test_register_tool_decorator(self):
         """Test tool registration using decorator."""
+
         @self.executor.register_tool("test_tool")
         def test_func(param: str) -> str:
             return f"Result: {param}"
@@ -55,6 +54,7 @@ class TestToolExecutor:
 
     def test_register_multiple_tools(self):
         """Test registering multiple tools."""
+
         @self.executor.register_tool("tool1")
         def func1(x: int) -> int:
             return x * 2
@@ -69,6 +69,7 @@ class TestToolExecutor:
 
     def test_successful_execution(self):
         """Test successful tool execution."""
+
         @self.executor.register_tool("fetch_data")
         def fetch_data(user_id: str) -> dict:
             return {"user_id": user_id, "name": "John Doe"}
@@ -77,7 +78,7 @@ class TestToolExecutor:
             tool_id="fetch_data",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="fetch_data",
-            parameters={"user_id": "123"}
+            parameters={"user_id": "123"},
         )
 
         result = self.executor.execute(request)
@@ -94,6 +95,7 @@ class TestToolExecutor:
 
     def test_execution_with_no_parameters(self):
         """Test tool execution with no parameters."""
+
         @self.executor.register_tool("get_timestamp")
         def get_timestamp() -> str:
             return "2024-01-01"
@@ -102,7 +104,7 @@ class TestToolExecutor:
             tool_id="get_timestamp",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="get_timestamp",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -112,6 +114,7 @@ class TestToolExecutor:
 
     def test_execution_with_multiple_parameters(self):
         """Test tool execution with multiple parameters."""
+
         @self.executor.register_tool("calculate")
         def calculate(a: int, b: int, operation: str) -> int:
             if operation == "add":
@@ -124,7 +127,7 @@ class TestToolExecutor:
             tool_id="calculate",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="calculate",
-            parameters={"a": 5, "b": 3, "operation": "multiply"}
+            parameters={"a": 5, "b": 3, "operation": "multiply"},
         )
 
         result = self.executor.execute(request)
@@ -138,7 +141,7 @@ class TestToolExecutor:
             tool_id="nonexistent_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="nonexistent",
-            parameters={}
+            parameters={},
         )
 
         with pytest.raises(ToolExecutionError) as exc_info:
@@ -149,6 +152,7 @@ class TestToolExecutor:
 
     def test_execution_error_without_retry(self):
         """Test that tool execution error is raised without retry."""
+
         @self.executor.register_tool("failing_tool")
         def failing_tool() -> str:
             raise ValueError("Tool failed")
@@ -158,7 +162,7 @@ class TestToolExecutor:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="failing_tool",
             parameters={},
-            retry_config=None  # No retry
+            retry_config=None,  # No retry
         )
 
         with pytest.raises(ToolExecutionError) as exc_info:
@@ -185,10 +189,8 @@ class TestToolExecutor:
             function_name="flaky_tool",
             parameters={},
             retry_config=RetryConfig(
-                max_attempts=3,
-                backoff_multiplier=1.5,
-                initial_delay_ms=10  # Short delay for tests
-            )
+                max_attempts=3, backoff_multiplier=1.5, initial_delay_ms=10  # Short delay for tests
+            ),
         )
 
         result = self.executor.execute(request)
@@ -213,11 +215,7 @@ class TestToolExecutor:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="always_failing",
             parameters={},
-            retry_config=RetryConfig(
-                max_attempts=3,
-                backoff_multiplier=1.5,
-                initial_delay_ms=10
-            )
+            retry_config=RetryConfig(max_attempts=3, backoff_multiplier=1.5, initial_delay_ms=10),
         )
 
         with pytest.raises(ToolExecutionError) as exc_info:
@@ -228,6 +226,7 @@ class TestToolExecutor:
 
     def test_timeout_handling(self):
         """Test timeout handling for slow tools."""
+
         @self.executor.register_tool("slow_tool")
         def slow_tool() -> str:
             time.sleep(2)  # Sleep for 2 seconds
@@ -238,7 +237,7 @@ class TestToolExecutor:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="slow_tool",
             parameters={},
-            timeout_seconds=1  # 1 second timeout
+            timeout_seconds=1,  # 1 second timeout
         )
 
         with pytest.raises(TimeoutError) as exc_info:
@@ -264,11 +263,7 @@ class TestToolExecutor:
             function_name="timeout_tool",
             parameters={},
             timeout_seconds=1,
-            retry_config=RetryConfig(
-                max_attempts=2,
-                backoff_multiplier=1.0,
-                initial_delay_ms=10
-            )
+            retry_config=RetryConfig(max_attempts=2, backoff_multiplier=1.0, initial_delay_ms=10),
         )
 
         # This should timeout on all attempts
@@ -279,6 +274,7 @@ class TestToolExecutor:
 
     def test_token_estimation_for_string(self):
         """Test token estimation for string results."""
+
         @self.executor.register_tool("get_text")
         def get_text() -> str:
             # Approximately 20 chars = ~5 tokens
@@ -288,7 +284,7 @@ class TestToolExecutor:
             tool_id="get_text",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="get_text",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -298,6 +294,7 @@ class TestToolExecutor:
 
     def test_token_estimation_for_dict(self):
         """Test token estimation for dictionary results."""
+
         @self.executor.register_tool("get_dict")
         def get_dict() -> dict:
             return {"key1": "value1", "key2": "value2"}
@@ -306,7 +303,7 @@ class TestToolExecutor:
             tool_id="get_dict",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="get_dict",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -317,6 +314,7 @@ class TestToolExecutor:
 
     def test_token_estimation_for_list(self):
         """Test token estimation for list results."""
+
         @self.executor.register_tool("get_list")
         def get_list() -> list:
             return [1, 2, 3, 4, 5]
@@ -325,7 +323,7 @@ class TestToolExecutor:
             tool_id="get_list",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="get_list",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -335,6 +333,7 @@ class TestToolExecutor:
 
     def test_execution_timing(self):
         """Test that execution time is accurately measured."""
+
         @self.executor.register_tool("timed_tool")
         def timed_tool() -> str:
             time.sleep(0.1)  # Sleep for 100ms
@@ -344,7 +343,7 @@ class TestToolExecutor:
             tool_id="timed_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="timed_tool",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -356,6 +355,7 @@ class TestToolExecutor:
 
     def test_validate_tool(self):
         """Test tool validation method."""
+
         @self.executor.register_tool("valid_tool")
         def valid_tool() -> str:
             return "ok"
@@ -365,6 +365,7 @@ class TestToolExecutor:
 
     def test_list_tools(self):
         """Test listing all registered tools."""
+
         @self.executor.register_tool("tool_a")
         def tool_a() -> str:
             return "a"
@@ -380,6 +381,7 @@ class TestToolExecutor:
 
     def test_execution_metadata_completeness(self):
         """Test that ToolResult contains all required metadata."""
+
         @self.executor.register_tool("metadata_tool")
         def metadata_tool(param: str) -> dict:
             return {"result": param}
@@ -388,24 +390,25 @@ class TestToolExecutor:
             tool_id="metadata_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="metadata_tool",
-            parameters={"param": "test"}
+            parameters={"param": "test"},
         )
 
         result = self.executor.execute(request)
 
         # Verify all required fields are present
-        assert hasattr(result, 'tool_id')
-        assert hasattr(result, 'success')
-        assert hasattr(result, 'data')
-        assert hasattr(result, 'error')
-        assert hasattr(result, 'execution_time_ms')
-        assert hasattr(result, 'timestamp')
-        assert hasattr(result, 'token_estimate')
-        assert hasattr(result, 'retry_count')
-        assert hasattr(result, 'metadata')
+        assert hasattr(result, "tool_id")
+        assert hasattr(result, "success")
+        assert hasattr(result, "data")
+        assert hasattr(result, "error")
+        assert hasattr(result, "execution_time_ms")
+        assert hasattr(result, "timestamp")
+        assert hasattr(result, "token_estimate")
+        assert hasattr(result, "retry_count")
+        assert hasattr(result, "metadata")
 
     def test_tool_result_to_text(self):
         """Test ToolResult.to_text() conversion."""
+
         @self.executor.register_tool("text_tool")
         def text_tool() -> dict:
             return {"name": "Alice", "age": 30}
@@ -414,7 +417,7 @@ class TestToolExecutor:
             tool_id="text_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="text_tool",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -436,6 +439,7 @@ class TestAsyncToolExecutor:
     @pytest.mark.asyncio
     async def test_register_async_tool(self):
         """Test async tool registration."""
+
         @self.executor.register_async_tool("async_tool")
         async def async_tool(param: str) -> str:
             await asyncio.sleep(0.01)
@@ -446,6 +450,7 @@ class TestAsyncToolExecutor:
     @pytest.mark.asyncio
     async def test_async_execution_success(self):
         """Test successful async tool execution."""
+
         @self.executor.register_async_tool("async_fetch")
         async def async_fetch(user_id: str) -> dict:
             await asyncio.sleep(0.01)
@@ -455,7 +460,7 @@ class TestAsyncToolExecutor:
             tool_id="async_fetch",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="async_fetch",
-            parameters={"user_id": "456"}
+            parameters={"user_id": "456"},
         )
 
         result = await self.executor.execute_async(request)
@@ -471,7 +476,7 @@ class TestAsyncToolExecutor:
             tool_id="missing_async_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="missing",
-            parameters={}
+            parameters={},
         )
 
         with pytest.raises(ToolExecutionError) as exc_info:
@@ -497,11 +502,7 @@ class TestAsyncToolExecutor:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="flaky_async",
             parameters={},
-            retry_config=RetryConfig(
-                max_attempts=3,
-                backoff_multiplier=1.5,
-                initial_delay_ms=10
-            )
+            retry_config=RetryConfig(max_attempts=3, backoff_multiplier=1.5, initial_delay_ms=10),
         )
 
         result = await self.executor.execute_async(request)
@@ -514,6 +515,7 @@ class TestAsyncToolExecutor:
     @pytest.mark.asyncio
     async def test_async_timeout(self):
         """Test async timeout handling."""
+
         @self.executor.register_async_tool("slow_async")
         async def slow_async() -> str:
             await asyncio.sleep(2)
@@ -524,7 +526,7 @@ class TestAsyncToolExecutor:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="slow_async",
             parameters={},
-            timeout_seconds=1
+            timeout_seconds=1,
         )
 
         with pytest.raises(TimeoutError) as exc_info:
@@ -535,6 +537,7 @@ class TestAsyncToolExecutor:
     @pytest.mark.asyncio
     async def test_async_execution_timing(self):
         """Test that async execution time is measured."""
+
         @self.executor.register_async_tool("timed_async")
         async def timed_async() -> str:
             await asyncio.sleep(0.1)
@@ -544,7 +547,7 @@ class TestAsyncToolExecutor:
             tool_id="timed_async",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="timed_async",
-            parameters={}
+            parameters={},
         )
 
         result = await self.executor.execute_async(request)
@@ -562,6 +565,7 @@ class TestToolExecutorEdgeCases:
 
     def test_tool_returns_none(self):
         """Test tool that returns None."""
+
         @self.executor.register_tool("none_tool")
         def none_tool() -> None:
             return None
@@ -570,7 +574,7 @@ class TestToolExecutorEdgeCases:
             tool_id="none_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="none_tool",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -580,24 +584,22 @@ class TestToolExecutorEdgeCases:
 
     def test_tool_with_complex_return_type(self):
         """Test tool with nested complex data structures."""
+
         @self.executor.register_tool("complex_tool")
         def complex_tool() -> dict:
             return {
                 "users": [
                     {"id": 1, "name": "Alice", "roles": ["admin", "user"]},
-                    {"id": 2, "name": "Bob", "roles": ["user"]}
+                    {"id": 2, "name": "Bob", "roles": ["user"]},
                 ],
-                "metadata": {
-                    "total": 2,
-                    "timestamp": "2024-01-01T00:00:00Z"
-                }
+                "metadata": {"total": 2, "timestamp": "2024-01-01T00:00:00Z"},
             }
 
         request = ToolRequest(
             tool_id="complex_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="complex_tool",
-            parameters={}
+            parameters={},
         )
 
         result = self.executor.execute(request)
@@ -609,11 +611,7 @@ class TestToolExecutorEdgeCases:
     def test_retry_config_validation(self):
         """Test that RetryConfig validates parameters."""
         # Valid config
-        config = RetryConfig(
-            max_attempts=3,
-            backoff_multiplier=2.0,
-            initial_delay_ms=100
-        )
+        config = RetryConfig(max_attempts=3, backoff_multiplier=2.0, initial_delay_ms=100)
         assert config.max_attempts == 3
 
         # Test max_attempts bounds
@@ -640,6 +638,7 @@ class TestToolExecutorEdgeCases:
 
     def test_multiple_tools_execution(self):
         """Test that multiple tools can be registered and executed."""
+
         @self.executor.register_tool("tool1")
         def tool1() -> int:
             return 1
@@ -652,14 +651,14 @@ class TestToolExecutorEdgeCases:
             tool_id="tool1",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="tool1",
-            parameters={}
+            parameters={},
         )
 
         request2 = ToolRequest(
             tool_id="tool2",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="tool2",
-            parameters={}
+            parameters={},
         )
 
         result1 = self.executor.execute(request1)
@@ -682,11 +681,7 @@ class TestToolExecutorEdgeCases:
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="backoff_tool",
             parameters={},
-            retry_config=RetryConfig(
-                max_attempts=3,
-                backoff_multiplier=2.0,
-                initial_delay_ms=100
-            )
+            retry_config=RetryConfig(max_attempts=3, backoff_multiplier=2.0, initial_delay_ms=100),
         )
 
         with pytest.raises(ToolExecutionError):
