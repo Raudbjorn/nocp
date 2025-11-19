@@ -272,5 +272,10 @@ def info():
     console.print(panel)
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the CLI."""
     app()
+
+
+if __name__ == "__main__":
+    main()
