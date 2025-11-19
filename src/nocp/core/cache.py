@@ -13,7 +13,7 @@ import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..models.contracts import ToolRequest, ToolResult
 
@@ -24,12 +24,12 @@ class CacheBackend(ABC):
     """Abstract base class for cache backends."""
 
     @abstractmethod
-    def get(self, key: str) -> Optional[ToolResult]:
+    def get(self, key: str) -> ToolResult | None:
         """Get a value from cache."""
         pass
 
     @abstractmethod
-    def set(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    def set(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """Set a value in cache with optional TTL."""
         pass
 
@@ -44,17 +44,17 @@ class CacheBackend(ABC):
         pass
 
     @abstractmethod
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         pass
 
     @abstractmethod
-    async def get_async(self, key: str) -> Optional[ToolResult]:
+    async def get_async(self, key: str) -> ToolResult | None:
         """Async version of get."""
         pass
 
     @abstractmethod
-    async def set_async(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    async def set_async(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """Async version of set."""
         pass
 
@@ -75,7 +75,7 @@ class LRUCache(CacheBackend):
         result = cache.get("key1")
     """
 
-    def __init__(self, max_size: int = 1000, default_ttl: Optional[int] = 3600):
+    def __init__(self, max_size: int = 1000, default_ttl: int | None = 3600):
         """
         Initialize LRU cache.
 
@@ -84,7 +84,7 @@ class LRUCache(CacheBackend):
             default_ttl: Default time-to-live in seconds (None = no expiration)
         """
         self._lock = threading.Lock()
-        self._cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._max_size = max_size
         self._default_ttl = default_ttl
 
@@ -110,13 +110,13 @@ class LRUCache(CacheBackend):
         key_data = f"{request.tool_id}:{params_str}"
         return hashlib.sha256(key_data.encode()).hexdigest()
 
-    def _is_expired(self, entry: Dict[str, Any]) -> bool:
+    def _is_expired(self, entry: dict[str, Any]) -> bool:
         """Check if a cache entry has expired."""
         if entry["expires_at"] is None:
             return False
         return datetime.now() > entry["expires_at"]
 
-    def get(self, key: str) -> Optional[ToolResult]:
+    def get(self, key: str) -> ToolResult | None:
         """
         Get a value from cache.
 
@@ -146,7 +146,7 @@ class LRUCache(CacheBackend):
             logger.debug(f"Cache hit for key: {key[:16]}...")
             return entry["value"]
 
-    def set(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    def set(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """
         Set a value in cache with optional TTL.
 
@@ -164,7 +164,7 @@ class LRUCache(CacheBackend):
             self._cache[key] = {
                 "value": value,
                 "expires_at": expires_at,
-                "created_at": datetime.now()
+                "created_at": datetime.now(),
             }
 
             # Move to end (most recently used)
@@ -193,7 +193,7 @@ class LRUCache(CacheBackend):
             self._cache.clear()
             logger.info(f"Cleared {count} cache entries")
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """
         Get cache statistics.
 
@@ -212,18 +212,18 @@ class LRUCache(CacheBackend):
                 "misses": self._misses,
                 "hit_rate": hit_rate,
                 "evictions": self._evictions,
-                "default_ttl": self._default_ttl
+                "default_ttl": self._default_ttl,
             }
 
-    async def get_async(self, key: str) -> Optional[ToolResult]:
+    async def get_async(self, key: str) -> ToolResult | None:
         """Async version of get (delegates to sync implementation)."""
         return self.get(key)
 
-    async def set_async(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    async def set_async(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """Async version of set (delegates to sync implementation)."""
         self.set(key, value, ttl_seconds)
 
-    def get_by_request(self, request: ToolRequest) -> Optional[ToolResult]:
+    def get_by_request(self, request: ToolRequest) -> ToolResult | None:
         """
         Get cached result for a ToolRequest.
 
@@ -236,7 +236,9 @@ class LRUCache(CacheBackend):
         key = self._generate_key(request)
         return self.get(key)
 
-    def set_by_request(self, request: ToolRequest, result: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    def set_by_request(
+        self, request: ToolRequest, result: ToolResult, ttl_seconds: int | None = None
+    ) -> None:
         """
         Cache a ToolResult for a ToolRequest.
 
@@ -248,16 +250,13 @@ class LRUCache(CacheBackend):
         key = self._generate_key(request)
         self.set(key, result, ttl_seconds)
 
-    async def get_by_request_async(self, request: ToolRequest) -> Optional[ToolResult]:
+    async def get_by_request_async(self, request: ToolRequest) -> ToolResult | None:
         """Async version of get_by_request."""
         key = self._generate_key(request)
         return await self.get_async(key)
 
     async def set_by_request_async(
-        self,
-        request: ToolRequest,
-        result: ToolResult,
-        ttl_seconds: Optional[int] = None
+        self, request: ToolRequest, result: ToolResult, ttl_seconds: int | None = None
     ) -> None:
         """Async version of set_by_request."""
         key = self._generate_key(request)
@@ -282,9 +281,9 @@ class ChromaDBCache(CacheBackend):
 
     def __init__(
         self,
-        persist_directory: Optional[str] = None,
+        persist_directory: str | None = None,
         collection_name: str = "nocp_cache",
-        default_ttl: Optional[int] = 3600,
+        default_ttl: int | None = 3600,
     ):
         """
         Initialize ChromaDB cache.
@@ -312,8 +311,7 @@ class ChromaDBCache(CacheBackend):
 
         # Get or create collection
         self._collection = self._client.get_or_create_collection(
-            name=collection_name,
-            metadata={"description": "NOCP tool result cache"}
+            name=collection_name, metadata={"description": "NOCP tool result cache"}
         )
 
         self._default_ttl = default_ttl
@@ -325,22 +323,22 @@ class ChromaDBCache(CacheBackend):
 
         logger.info(f"ChromaDB cache initialized with collection '{collection_name}'")
 
-    def _serialize(self, result: ToolResult) -> Dict[str, Any]:
+    def _serialize(self, result: ToolResult) -> dict[str, Any]:
         """Serialize ToolResult to dictionary."""
-        return result.model_dump(mode='json')
+        return result.model_dump(mode="json")
 
-    def _deserialize(self, data: Dict[str, Any]) -> ToolResult:
+    def _deserialize(self, data: dict[str, Any]) -> ToolResult:
         """Deserialize dictionary to ToolResult."""
         return ToolResult(**data)
 
-    def _is_expired(self, metadata: Dict[str, Any]) -> bool:
+    def _is_expired(self, metadata: dict[str, Any]) -> bool:
         """Check if a cache entry has expired based on metadata."""
         if metadata.get("expires_at") is None:
             return False
         expires_at = float(metadata["expires_at"])
         return time.time() > expires_at
 
-    def get(self, key: str) -> Optional[ToolResult]:
+    def get(self, key: str) -> ToolResult | None:
         """Get a value from ChromaDB cache."""
         try:
             result = self._collection.get(ids=[key], include=["metadatas", "documents"])
@@ -369,7 +367,7 @@ class ChromaDBCache(CacheBackend):
             self._misses += 1
             return None
 
-    def set(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    def set(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """Set a value in ChromaDB cache with optional TTL."""
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
         expires_at = None if ttl is None else time.time() + ttl
@@ -381,7 +379,7 @@ class ChromaDBCache(CacheBackend):
             "tool_result": json.dumps(serialized_data),
             "created_at": str(time.time()),
             "expires_at": str(expires_at) if expires_at else "null",
-            "ttl": str(ttl) if ttl else "null"
+            "ttl": str(ttl) if ttl else "null",
         }
 
         try:
@@ -391,16 +389,12 @@ class ChromaDBCache(CacheBackend):
             if existing["ids"]:
                 # Update existing entry
                 self._collection.update(
-                    ids=[key],
-                    metadatas=[metadata],
-                    documents=[f"cache_entry_{key[:16]}"]
+                    ids=[key], metadatas=[metadata], documents=[f"cache_entry_{key[:16]}"]
                 )
             else:
                 # Add new entry
                 self._collection.add(
-                    ids=[key],
-                    metadatas=[metadata],
-                    documents=[f"cache_entry_{key[:16]}"]
+                    ids=[key], metadatas=[metadata], documents=[f"cache_entry_{key[:16]}"]
                 )
 
             logger.debug(f"Cached result in ChromaDB for key: {key[:16]}... (TTL: {ttl}s)")
@@ -427,15 +421,14 @@ class ChromaDBCache(CacheBackend):
 
             # Recreate the collection
             self._collection = self._client.get_or_create_collection(
-                name=self._collection_name,
-                metadata={"description": "NOCP tool result cache"}
+                name=self._collection_name, metadata={"description": "NOCP tool result cache"}
             )
 
             logger.info(f"Cleared {count} ChromaDB cache entries")
         except Exception as e:
             logger.error(f"Error clearing cache: {e}")
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get ChromaDB cache statistics."""
         total_requests = self._hits + self._misses
         hit_rate = (self._hits / total_requests) if total_requests > 0 else 0.0
@@ -447,14 +440,14 @@ class ChromaDBCache(CacheBackend):
             "misses": self._misses,
             "hit_rate": hit_rate,
             "default_ttl": self._default_ttl,
-            "collection_name": self._collection_name
+            "collection_name": self._collection_name,
         }
 
-    async def get_async(self, key: str) -> Optional[ToolResult]:
+    async def get_async(self, key: str) -> ToolResult | None:
         """Async version of get (delegates to sync with asyncio.to_thread)."""
         return await asyncio.to_thread(self.get, key)
 
-    async def set_async(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    async def set_async(self, key: str, value: ToolResult, ttl_seconds: int | None = None) -> None:
         """Async version of set (delegates to sync with asyncio.to_thread)."""
         await asyncio.to_thread(self.set, key, value, ttl_seconds)
 
@@ -464,26 +457,25 @@ class ChromaDBCache(CacheBackend):
         key_data = f"{request.tool_id}:{params_str}"
         return hashlib.sha256(key_data.encode()).hexdigest()
 
-    def get_by_request(self, request: ToolRequest) -> Optional[ToolResult]:
+    def get_by_request(self, request: ToolRequest) -> ToolResult | None:
         """Get cached result for a ToolRequest."""
         key = self._generate_key(request)
         return self.get(key)
 
-    def set_by_request(self, request: ToolRequest, result: ToolResult, ttl_seconds: Optional[int] = None) -> None:
+    def set_by_request(
+        self, request: ToolRequest, result: ToolResult, ttl_seconds: int | None = None
+    ) -> None:
         """Cache a ToolResult for a ToolRequest."""
         key = self._generate_key(request)
         self.set(key, result, ttl_seconds)
 
-    async def get_by_request_async(self, request: ToolRequest) -> Optional[ToolResult]:
+    async def get_by_request_async(self, request: ToolRequest) -> ToolResult | None:
         """Async version of get_by_request."""
         key = self._generate_key(request)
         return await self.get_async(key)
 
     async def set_by_request_async(
-        self,
-        request: ToolRequest,
-        result: ToolResult,
-        ttl_seconds: Optional[int] = None
+        self, request: ToolRequest, result: ToolResult, ttl_seconds: int | None = None
     ) -> None:
         """Async version of set_by_request."""
         key = self._generate_key(request)
@@ -497,10 +489,10 @@ class CacheConfig:
         self,
         backend: str = "memory",
         max_size: int = 1000,
-        default_ttl: Optional[int] = 3600,
-        chromadb_persist_dir: Optional[str] = None,
+        default_ttl: int | None = 3600,
+        chromadb_persist_dir: str | None = None,
         chromadb_collection_name: str = "nocp_cache",
-        enabled: bool = True
+        enabled: bool = True,
     ):
         """
         Initialize cache configuration.
@@ -520,7 +512,7 @@ class CacheConfig:
         self.chromadb_collection_name = chromadb_collection_name
         self.enabled = enabled
 
-    def create_backend(self) -> Optional[CacheBackend]:
+    def create_backend(self) -> CacheBackend | None:
         """
         Create a cache backend based on configuration.
 
@@ -532,14 +524,16 @@ class CacheConfig:
             return None
 
         if self.backend == "memory":
-            logger.info(f"Using in-memory LRU cache (max_size={self.max_size}, ttl={self.default_ttl}s)")
+            logger.info(
+                f"Using in-memory LRU cache (max_size={self.max_size}, ttl={self.default_ttl}s)"
+            )
             return LRUCache(max_size=self.max_size, default_ttl=self.default_ttl)
         elif self.backend == "chromadb":
             logger.info(f"Using ChromaDB cache at {self.chromadb_persist_dir or 'in-memory'}")
             return ChromaDBCache(
                 persist_directory=self.chromadb_persist_dir,
                 collection_name=self.chromadb_collection_name,
-                default_ttl=self.default_ttl
+                default_ttl=self.default_ttl,
             )
         else:
             raise ValueError(f"Unknown cache backend: {self.backend}")

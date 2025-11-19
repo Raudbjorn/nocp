@@ -7,26 +7,27 @@ to deliver optimized LLM interactions with token efficiency as the primary goal.
 
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
+from ..core.config import get_config
+from ..llm.client import LLMClient
+from ..llm.router import ModelRouter
+from ..models.context import PersistentContext, TransientContext
 from ..models.schemas import (
     AgentRequest,
     AgentResponse,
-    ToolDefinition,
-    ContextMetrics,
     CompressionResult,
+    ContextMetrics,
+    ToolDefinition,
 )
-from ..models.context import TransientContext, PersistentContext
-from ..modules.router import RequestRouter
-from ..modules.tool_executor import ToolExecutor
 from ..modules.context_manager import ContextManager
 from ..modules.output_serializer import OutputSerializer
-from ..core.config import get_config
-from ..utils.logging import get_logger, log_metrics, get_metrics_logger, agent_logger
+from ..modules.router import RequestRouter
+from ..modules.tool_executor import ToolExecutor
+from ..utils.logging import agent_logger, get_logger, get_metrics_logger, log_metrics
 from ..utils.rich_logging import console
 from ..utils.token_counter import TokenCounter
-from ..llm.client import LLMClient
-from ..llm.router import ModelRouter, RequestComplexity
 
 
 class HighEfficiencyProxyAgent:
@@ -42,8 +43,8 @@ class HighEfficiencyProxyAgent:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model_name: Optional[str] = None,
+        api_key: str | None = None,
+        model_name: str | None = None,
     ):
         """
         Initialize the High-Efficiency Proxy Agent.
@@ -95,6 +96,7 @@ class HighEfficiencyProxyAgent:
         else:
             # Fallback to google.generativeai for backward compatibility
             import google.generativeai as genai
+
             api_key = api_key or self.config.gemini_api_key
             genai.configure(api_key=api_key)
             self.model_name = model_name or self.config.gemini_model
@@ -135,7 +137,7 @@ class HighEfficiencyProxyAgent:
     def process_request(
         self,
         request: AgentRequest,
-        return_format: Optional[str] = None,
+        return_format: str | None = None,
     ) -> tuple[str, ContextMetrics]:
         """
         Process an agent request end-to-end.
@@ -160,7 +162,7 @@ class HighEfficiencyProxyAgent:
 
         agent_logger.log_operation_start(
             "agent_request",
-            {"transaction_id": transaction_id, "query_preview": request.query[:100]}
+            {"transaction_id": transaction_id, "query_preview": request.query[:100]},
         )
 
         self.logger.info(
@@ -170,8 +172,8 @@ class HighEfficiencyProxyAgent:
         )
 
         # Initialize metrics tracking
-        compression_operations: List[CompressionResult] = []
-        tools_used: List[str] = []
+        compression_operations: list[CompressionResult] = []
+        tools_used: list[str] = []
 
         try:
             # Step 1: Route request and prepare context
@@ -207,14 +209,11 @@ class HighEfficiencyProxyAgent:
             # Calculate final metrics
             total_latency_ms = (time.perf_counter() - start_time) * 1000
             compression_latency_ms = sum(
-                comp.compression_time_ms
-                for comp in compression_operations
+                comp.compression_time_ms for comp in compression_operations
             )
 
             # Count output tokens
-            raw_output_tokens = self.token_counter.count_text(
-                agent_response.model_dump_json()
-            )
+            raw_output_tokens = self.token_counter.count_text(agent_response.model_dump_json())
 
             # Calculate token savings
             input_token_savings = raw_input_tokens - compressed_input_tokens
@@ -224,13 +223,17 @@ class HighEfficiencyProxyAgent:
                 transaction_id=transaction_id,
                 raw_input_tokens=raw_input_tokens,
                 compressed_input_tokens=compressed_input_tokens,
-                input_compression_ratio=compressed_input_tokens / raw_input_tokens if raw_input_tokens > 0 else 1.0,
+                input_compression_ratio=(
+                    compressed_input_tokens / raw_input_tokens if raw_input_tokens > 0 else 1.0
+                ),
                 raw_output_tokens=raw_output_tokens,
                 final_output_format=output_format,
                 output_token_savings=token_savings,
                 total_latency_ms=total_latency_ms,
                 compression_latency_ms=compression_latency_ms,
-                llm_inference_latency_ms=total_latency_ms - compression_latency_ms - serialization_time,
+                llm_inference_latency_ms=total_latency_ms
+                - compression_latency_ms
+                - serialization_time,
                 tools_used=tools_used,
                 compression_operations=compression_operations,
             )
@@ -273,8 +276,8 @@ class HighEfficiencyProxyAgent:
                     "input_token_savings": input_token_savings,
                     "output_token_savings": token_savings,
                     "compression_ratio": round(metrics.input_compression_ratio, 3),
-                    "tools_used": len(tools_used)
-                }
+                    "tools_used": len(tools_used),
+                },
             )
 
             return serialized_output, metrics
@@ -289,20 +292,16 @@ class HighEfficiencyProxyAgent:
                 console.print_error(f"Request processing failed: {str(e)}")
 
             # Log error with component logger
-            agent_logger.log_operation_error(
-                "agent_request",
-                e,
-                {"transaction_id": transaction_id}
-            )
+            agent_logger.log_operation_error("agent_request", e, {"transaction_id": transaction_id})
             raise
 
     def _handle_tool_execution(
         self,
         tool_name: str,
-        tool_params: Dict[str, Any],
+        tool_params: dict[str, Any],
         transient_ctx: TransientContext,
-        compression_operations: List[CompressionResult],
-        tools_used: List[str],
+        compression_operations: list[CompressionResult],
+        tools_used: list[str],
     ) -> None:
         """
         Execute a tool and manage its output.
@@ -323,9 +322,7 @@ class HighEfficiencyProxyAgent:
         tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
 
         # Apply context management (compression)
-        managed_output, compression_result = self.context_manager.manage_tool_output(
-            tool_result
-        )
+        managed_output, compression_result = self.context_manager.manage_tool_output(tool_result)
 
         if compression_result:
             compression_operations.append(compression_result)
@@ -341,8 +338,8 @@ class HighEfficiencyProxyAgent:
         self,
         transient_ctx: TransientContext,
         persistent_ctx: PersistentContext,
-        compression_operations: List[CompressionResult],
-        tools_used: List[str],
+        compression_operations: list[CompressionResult],
+        tools_used: list[str],
     ) -> AgentResponse:
         """
         Execute the main agent loop with tool calling and context management.
@@ -366,7 +363,11 @@ class HighEfficiencyProxyAgent:
         messages = self._format_messages_for_llm(transient_ctx, persistent_ctx)
 
         # Get tool schemas
-        tool_schemas = self.tool_executor.get_tool_schemas_for_gemini() if hasattr(self.tool_executor, 'get_tool_schemas_for_gemini') else None
+        tool_schemas = (
+            self.tool_executor.get_tool_schemas_for_gemini()
+            if hasattr(self.tool_executor, "get_tool_schemas_for_gemini")
+            else None
+        )
 
         # Call LLM with or without LiteLLM
         if self.llm_client:
@@ -387,6 +388,7 @@ class HighEfficiencyProxyAgent:
         else:
             # Use genai directly (backward compatibility)
             import google.generativeai as genai
+
             generation_config = genai.GenerationConfig(
                 max_output_tokens=self.config.max_output_tokens,
                 temperature=0.7,
@@ -426,12 +428,14 @@ class HighEfficiencyProxyAgent:
                 response_text = str(response.content) if response.content else ""
         else:
             # Handle genai response (backward compatibility)
-            if (hasattr(response, 'candidates') and
-                len(response.candidates) > 0 and
-                hasattr(response.candidates[0], 'content') and
-                hasattr(response.candidates[0].content, 'parts') and
-                len(response.candidates[0].content.parts) > 0 and
-                (function_call := response.candidates[0].content.parts[0].function_call)):
+            if (
+                hasattr(response, "candidates")
+                and len(response.candidates) > 0
+                and hasattr(response.candidates[0], "content")
+                and hasattr(response.candidates[0].content, "parts")
+                and len(response.candidates[0].content.parts) > 0
+                and (function_call := response.candidates[0].content.parts[0].function_call)
+            ):
                 tool_name = function_call.name
                 tool_params = dict(function_call.args)
 
@@ -446,6 +450,7 @@ class HighEfficiencyProxyAgent:
 
                 # Continue agent loop with tool result
                 import google.generativeai as genai
+
                 generation_config = genai.GenerationConfig(
                     max_output_tokens=self.config.max_output_tokens,
                     temperature=0.7,
@@ -462,7 +467,7 @@ class HighEfficiencyProxyAgent:
         # For now, return a simple response (in production, use structured output)
         agent_logger.log_operation_complete(
             "agent_loop",
-            details={"tools_used": len(tools_used), "compressions": len(compression_operations)}
+            details={"tools_used": len(tools_used), "compressions": len(compression_operations)},
         )
 
         return AgentResponse(
@@ -475,7 +480,7 @@ class HighEfficiencyProxyAgent:
         self,
         transient_ctx: TransientContext,
         persistent_ctx: PersistentContext,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Format context into messages for LLM API (LiteLLM or Gemini).
 
@@ -505,14 +510,16 @@ class HighEfficiencyProxyAgent:
                 # tool role stays as "tool"
                 role = msg.role
 
-            messages.append({
-                "role": role,
-                "parts": [{"text": msg.content}],
-            })
+            messages.append(
+                {
+                    "role": role,
+                    "parts": [{"text": msg.content}],
+                }
+            )
 
         return messages
 
-    def get_metrics_summary(self, window_size: int = 100) -> Dict[str, Any]:
+    def get_metrics_summary(self, window_size: int = 100) -> dict[str, Any]:
         """
         Get summary metrics and drift analysis.
 

@@ -10,11 +10,11 @@ Tests cover:
 - Error handling
 """
 
-import pytest
 import tempfile
-import yaml
 from pathlib import Path
 
+import pytest
+import yaml
 from nocp.core.config import ProxyConfig, reset_config
 from nocp.utils.config_export import export_config, import_config, print_config_diff
 
@@ -64,11 +64,7 @@ class TestConfigExport:
             config = ProxyConfig(gemini_api_key="test-secret-key")
             output_path = Path(tmpdir) / "config_with_secrets.yaml"
 
-            result_path = export_config(
-                config,
-                output_path=output_path,
-                include_secrets=True
-            )
+            result_path = export_config(config, output_path=output_path, include_secrets=True)
 
             # Verify file contents
             with result_path.open() as f:
@@ -84,7 +80,7 @@ class TestConfigExport:
             config = ProxyConfig(
                 gemini_api_key="gemini-secret",
                 openai_api_key="openai-secret",
-                anthropic_api_key="anthropic-secret"
+                anthropic_api_key="anthropic-secret",
             )
             output_path = Path(tmpdir) / "config_no_secrets.yaml"
 
@@ -121,7 +117,7 @@ class TestConfigExport:
                 gemini_api_key="test-key",
                 gemini_model="gemini-2.5-flash",
                 log_level="DEBUG",
-                default_compression_threshold=5000
+                default_compression_threshold=5000,
             )
             output_path = Path(tmpdir) / "config.yaml"
 
@@ -247,7 +243,7 @@ class TestConfigRoundTrip:
             export_config(
                 original_config,
                 output_path=output_path,
-                include_secrets=True  # Include secrets for full round-trip
+                include_secrets=True,  # Include secrets for full round-trip
             )
 
             # Import
@@ -257,10 +253,13 @@ class TestConfigRoundTrip:
             assert imported_config.gemini_api_key == original_config.gemini_api_key
             assert imported_config.gemini_model == original_config.gemini_model
             assert imported_config.log_level == original_config.log_level
-            assert imported_config.default_compression_threshold == \
-                original_config.default_compression_threshold
-            assert imported_config.enable_semantic_pruning == \
-                original_config.enable_semantic_pruning
+            assert (
+                imported_config.default_compression_threshold
+                == original_config.default_compression_threshold
+            )
+            assert (
+                imported_config.enable_semantic_pruning == original_config.enable_semantic_pruning
+            )
 
     def test_round_trip_without_secrets(self):
         """Test round-trip without secrets (common use case)."""

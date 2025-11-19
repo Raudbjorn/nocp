@@ -5,18 +5,19 @@ Provides functionality to export ProxyConfig instances to YAML files with
 optional secret exclusion, import and validate configurations from YAML,
 and display differences between two configuration objects.
 """
-import yaml
+
 from pathlib import Path
-from typing import Optional
+
+import yaml
+
 from ..core.config import ProxyConfig
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 def export_config(
-    config: ProxyConfig,
-    output_path: Optional[Path] = None,
-    include_secrets: bool = False
+    config: ProxyConfig, output_path: Path | None = None, include_secrets: bool = False
 ) -> Path:
     """
     Export configuration to YAML file.
@@ -39,23 +40,14 @@ def export_config(
     if not include_secrets:
         exclude_fields = ProxyConfig.SECRET_FIELDS
 
-    config_dict = config.model_dump(
-        exclude=exclude_fields,
-        exclude_none=True,
-        mode='json'
-    )
+    config_dict = config.model_dump(exclude=exclude_fields, exclude_none=True, mode="json")
 
     with output_path.open("w") as f:
-        yaml.dump(
-            config_dict,
-            f,
-            default_flow_style=False,
-            sort_keys=True,
-            indent=2
-        )
+        yaml.dump(config_dict, f, default_flow_style=False, sort_keys=True, indent=2)
 
     logger.info(f"Configuration exported to {output_path}")
     return output_path
+
 
 def import_config(config_path: Path) -> ProxyConfig:
     """
@@ -75,6 +67,7 @@ def import_config(config_path: Path) -> ProxyConfig:
 
     logger.info(f"Configuration loaded from {config_path}")
     return ProxyConfig(**config_dict)
+
 
 def print_config_diff(config1: ProxyConfig, config2: ProxyConfig) -> None:
     """Print differences between two configurations"""

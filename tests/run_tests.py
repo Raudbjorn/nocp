@@ -19,26 +19,29 @@ Usage:
     python tests/run_tests.py --json report.json # Generate JSON report
 """
 
-import sys
-import subprocess
 import argparse
-import time
 import json
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass, asdict
+import subprocess
+import sys
+import time
+from dataclasses import asdict, dataclass
 from enum import Enum
+from pathlib import Path
+
 
 class TestCategory(Enum):
     """Test categories"""
+
     UNIT = "unit"
     INTEGRATION = "integration"
     E2E = "e2e"
     PERFORMANCE = "performance"
 
+
 @dataclass
 class TestResult:
     """Test result for a category"""
+
     category: str
     passed: bool
     duration_s: float
@@ -47,36 +50,33 @@ class TestResult:
     failed_count: int
     output: str
 
+
 @dataclass
 class TestSummary:
     """Overall test summary"""
+
     total_tests: int
     total_passed: int
     total_failed: int
     total_duration_s: float
     success_rate: float
-    results: List[TestResult]
+    results: list[TestResult]
+
 
 class NOCPTestRunner:
     """Test runner for NOCP project"""
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        fail_fast: bool = False,
-        capture_output: bool = True
-    ):
+    def __init__(self, verbose: bool = False, fail_fast: bool = False, capture_output: bool = True):
         self.project_root = Path(__file__).parent.parent
         self.tests_dir = Path(__file__).parent
         self.verbose = verbose
         self.fail_fast = fail_fast
         self.capture_output = capture_output
-        self.results: List[TestResult] = []
+        self.results: list[TestResult] = []
 
     def discover_tests(
-        self,
-        category: Optional[TestCategory] = None
-    ) -> Dict[TestCategory, List[Path]]:
+        self, category: TestCategory | None = None
+    ) -> dict[TestCategory, list[Path]]:
         """Discover all test files organized by category"""
         categories = {
             TestCategory.UNIT: self.tests_dir / "unit",
@@ -103,11 +103,7 @@ class NOCPTestRunner:
 
         return discovered
 
-    def run_pytest(
-        self,
-        test_paths: List[Path],
-        category: TestCategory
-    ) -> TestResult:
+    def run_pytest(self, test_paths: list[Path], category: TestCategory) -> TestResult:
         """Run pytest on given test files"""
         start_time = time.time()
 
@@ -132,10 +128,7 @@ class NOCPTestRunner:
 
         # Run pytest
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=self.capture_output,
-            text=True
+            cmd, cwd=self.project_root, capture_output=self.capture_output, text=True
         )
 
         duration = time.time() - start_time
@@ -152,18 +145,18 @@ class NOCPTestRunner:
             test_count=test_count,
             passed_count=passed_count,
             failed_count=failed_count,
-            output=output
+            output=output,
         )
 
-    def _parse_test_counts(self, output: str) -> Tuple[int, int]:
+    def _parse_test_counts(self, output: str) -> tuple[int, int]:
         """Parse test counts from pytest output"""
         # Look for "X passed" or "X failed" in output
         import re
 
         # Pattern: "5 passed" or "3 failed"
         # pytest output format: "18 failed, 63 passed, 7 warnings in 16.99s"
-        passed_match = re.search(r'(\d+)\s+passed', output)
-        failed_match = re.search(r'(\d+)\s+failed', output)
+        passed_match = re.search(r"(\d+)\s+passed", output)
+        failed_match = re.search(r"(\d+)\s+failed", output)
 
         passed = int(passed_match.group(1)) if passed_match else 0
         failed = int(failed_match.group(1)) if failed_match else 0
@@ -194,10 +187,7 @@ class NOCPTestRunner:
         if not result.passed:
             print(f"\n{result.output}")
 
-    def run_all_tests(
-        self,
-        category: Optional[TestCategory] = None
-    ) -> TestSummary:
+    def run_all_tests(self, category: TestCategory | None = None) -> TestSummary:
         """Run all discovered tests"""
         self.print_banner()
 
@@ -211,7 +201,7 @@ class NOCPTestRunner:
                 total_failed=0,
                 total_duration_s=0.0,
                 success_rate=0.0,
-                results=[]
+                results=[],
             )
 
         categories_list = [cat.value for cat in discovered.keys()]
@@ -247,11 +237,7 @@ class NOCPTestRunner:
         total_passed = sum(r.passed_count for r in self.results)
         total_failed = sum(r.failed_count for r in self.results)
 
-        success_rate = (
-            (total_passed / total_tests * 100)
-            if total_tests > 0
-            else 0.0
-        )
+        success_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0.0
 
         return TestSummary(
             total_tests=total_tests,
@@ -259,7 +245,7 @@ class NOCPTestRunner:
             total_failed=total_failed,
             total_duration_s=total_duration,
             success_rate=success_rate,
-            results=self.results
+            results=self.results,
         )
 
     def _print_summary(self, summary: TestSummary):
@@ -278,8 +264,10 @@ class NOCPTestRunner:
         print("\n📋 By Category:")
         for result in summary.results:
             status = "✅ PASS" if result.passed else "❌ FAIL"
-            print(f"  {result.category:12s} {status:8s} "
-                  f"({result.test_count} tests, {result.duration_s:.2f}s)")
+            print(
+                f"  {result.category:12s} {status:8s} "
+                f"({result.test_count} tests, {result.duration_s:.2f}s)"
+            )
 
         print("\n" + "=" * 70)
 
@@ -287,36 +275,23 @@ class NOCPTestRunner:
         """Save JSON test report"""
         report = asdict(summary)
 
-        with output_path.open('w') as f:
+        with output_path.open("w") as f:
             json.dump(report, f, indent=2)
 
         print(f"\n📄 JSON report saved to {output_path}")
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="NOCP test runner with category organization"
-    )
+    parser = argparse.ArgumentParser(description="NOCP test runner with category organization")
     parser.add_argument(
         "--category",
         type=str,
         choices=["unit", "integration", "e2e", "performance"],
-        help="Run tests from specific category only"
+        help="Run tests from specific category only",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Verbose output"
-    )
-    parser.add_argument(
-        "-x", "--fail-fast",
-        action="store_true",
-        help="Stop on first failure"
-    )
-    parser.add_argument(
-        "--json",
-        type=Path,
-        help="Save JSON report to file"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("-x", "--fail-fast", action="store_true", help="Stop on first failure")
+    parser.add_argument("--json", type=Path, help="Save JSON report to file")
 
     args = parser.parse_args()
 
@@ -326,10 +301,7 @@ def main():
         category = TestCategory(args.category)
 
     # Run tests
-    runner = NOCPTestRunner(
-        verbose=args.verbose,
-        fail_fast=args.fail_fast
-    )
+    runner = NOCPTestRunner(verbose=args.verbose, fail_fast=args.fail_fast)
 
     summary = runner.run_all_tests(category)
 
@@ -339,6 +311,7 @@ def main():
 
     # Exit with appropriate code
     sys.exit(0 if summary.total_failed == 0 else 1)
+
 
 if __name__ == "__main__":
     main()

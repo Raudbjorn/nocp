@@ -2,16 +2,17 @@
 """
 Test script for ChromaDB cache implementation.
 """
-import sys
 import os
-from datetime import datetime
+import sys
 import time
+from datetime import datetime
 
 # Add src to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 
+from nocp.core.cache import CacheConfig, ChromaDBCache
 from nocp.models.contracts import ToolRequest, ToolResult, ToolType
-from nocp.core.cache import ChromaDBCache, CacheConfig
+
 
 def test_chromadb_basic():
     """Test basic ChromaDB cache operations."""
@@ -28,7 +29,7 @@ def test_chromadb_basic():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     # Test set/get
@@ -55,6 +56,7 @@ def test_chromadb_basic():
     cache.clear()
     return True
 
+
 def test_chromadb_ttl():
     """Test TTL functionality."""
     print("\n=== Testing ChromaDB TTL ===")
@@ -68,7 +70,7 @@ def test_chromadb_ttl():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     # Set with 1 second TTL
@@ -98,6 +100,7 @@ def test_chromadb_ttl():
     cache.clear()
     return True
 
+
 def test_chromadb_by_request():
     """Test caching by ToolRequest."""
     print("\n=== Testing ChromaDB by ToolRequest ===")
@@ -108,7 +111,7 @@ def test_chromadb_by_request():
         tool_id="test_tool",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="test_func",
-        parameters={"param1": "value1", "param2": "value2"}
+        parameters={"param1": "value1", "param2": "value2"},
     )
 
     result = ToolResult(
@@ -118,7 +121,7 @@ def test_chromadb_by_request():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     # Cache by request
@@ -140,7 +143,7 @@ def test_chromadb_by_request():
         tool_id="test_tool",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="test_func",
-        parameters={"param1": "value1", "param2": "different"}
+        parameters={"param1": "value1", "param2": "different"},
     )
 
     retrieved2 = cache.get_by_request(request2)
@@ -152,6 +155,7 @@ def test_chromadb_by_request():
 
     cache.clear()
     return True
+
 
 async def test_chromadb_async():
     """Test async operations."""
@@ -166,7 +170,7 @@ async def test_chromadb_async():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     # Test async set/get
@@ -185,6 +189,7 @@ async def test_chromadb_async():
     cache.clear()
     return True
 
+
 def test_cache_config():
     """Test CacheConfig with ChromaDB."""
     print("\n=== Testing CacheConfig ===")
@@ -193,7 +198,7 @@ def test_cache_config():
         backend="chromadb",
         chromadb_persist_dir=None,
         chromadb_collection_name="test_config",
-        default_ttl=3600
+        default_ttl=3600,
     )
 
     cache = config.create_backend()
@@ -212,7 +217,7 @@ def test_cache_config():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     cache.set("config_key", result)
@@ -227,6 +232,7 @@ def test_cache_config():
     cache.clear()
     return True
 
+
 async def main():
     """Run all tests."""
     print("=" * 60)
@@ -235,6 +241,7 @@ async def main():
 
     try:
         import chromadb
+
         print(f"✓ ChromaDB version: {chromadb.__version__}")
     except ImportError:
         print("✗ ChromaDB not installed! Run: pip install chromadb")
@@ -249,7 +256,7 @@ async def main():
     results.append(("Cache Config", test_cache_config()))
 
     # Run async test
-    import asyncio
+
     results.append(("Async Operations", await test_chromadb_async()))
 
     # Print summary
@@ -272,7 +279,9 @@ async def main():
 
     return failed == 0
 
+
 if __name__ == "__main__":
     import asyncio
+
     success = asyncio.run(main())
     sys.exit(0 if success else 1)

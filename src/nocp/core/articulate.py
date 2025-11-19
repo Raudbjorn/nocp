@@ -7,11 +7,10 @@ Implements format negotiation to select the most efficient serialization strateg
 
 import json
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from ..exceptions import SerializationError
 from ..models.contracts import (
     SerializationRequest,
     SerializedOutput,
@@ -63,21 +62,16 @@ class OutputSerializer:
         try:
             if format_used == OutputFormat.TOON:
                 serialized = self.toon_encoder.encode(
-                    request.data,
-                    length_marker="#" if request.include_length_markers else ""
+                    request.data, length_marker="#" if request.include_length_markers else ""
                 )
             else:  # COMPACT_JSON
-                serialized = request.data.model_dump_json(
-                    indent=None,
-                    separators=(',', ':')
-                )
+                serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))
         except Exception as e:
             # Fallback to compact JSON on error
-            articulate_logger.logger.warning(f"Serialization failed ({e}), falling back to compact JSON")
-            serialized = request.data.model_dump_json(
-                indent=None,
-                separators=(',', ':')
+            articulate_logger.logger.warning(
+                f"Serialization failed ({e}), falling back to compact JSON"
             )
+            serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))
             format_used = OutputFormat.COMPACT_JSON
 
         serialization_time = (time.perf_counter() - start_time) * 1000
@@ -107,8 +101,8 @@ class OutputSerializer:
                 "original_tokens": original_tokens,
                 "optimized_tokens": optimized_tokens,
                 "savings_ratio": round(savings_ratio, 3),
-                "is_valid": is_valid
-            }
+                "is_valid": is_valid,
+            },
         )
 
         return SerializedOutput(
@@ -119,7 +113,7 @@ class OutputSerializer:
             savings_ratio=savings_ratio,
             is_valid=is_valid,
             serialization_time_ms=serialization_time,
-            schema_complexity=self._assess_complexity(request.data)
+            schema_complexity=self._assess_complexity(request.data),
         )
 
     def negotiate_format(self, model: BaseModel) -> OutputFormat:
@@ -152,7 +146,7 @@ class OutputSerializer:
 
         return OutputFormat.COMPACT_JSON  # Safe default
 
-    def _is_uniform_list(self, arr: List[Any]) -> bool:
+    def _is_uniform_list(self, arr: list[Any]) -> bool:
         """Check if list is uniform (same structure)."""
         if not arr or not isinstance(arr[0], dict):
             return False
@@ -167,17 +161,11 @@ class OutputSerializer:
         if isinstance(obj, dict):
             if not obj:
                 return current_depth
-            return max(
-                self._get_nesting_depth(v, current_depth + 1)
-                for v in obj.values()
-            )
+            return max(self._get_nesting_depth(v, current_depth + 1) for v in obj.values())
         else:  # list
             if not obj:
                 return current_depth
-            return max(
-                self._get_nesting_depth(item, current_depth + 1)
-                for item in obj
-            )
+            return max(self._get_nesting_depth(item, current_depth + 1) for item in obj)
 
     def _assess_complexity(self, model: BaseModel) -> str:
         """
@@ -200,7 +188,7 @@ class OutputSerializer:
         else:
             return "nested"
 
-    def _has_uniform_arrays(self, obj: Dict[str, Any]) -> bool:
+    def _has_uniform_arrays(self, obj: dict[str, Any]) -> bool:
         """Check if object contains uniform arrays."""
         for value in obj.values():
             if isinstance(value, list) and self._is_uniform_list(value):

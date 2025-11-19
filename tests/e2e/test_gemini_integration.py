@@ -8,8 +8,9 @@ Tests cover:
 - Error handling
 """
 
-import pytest
 import os
+
+import pytest
 
 
 @pytest.mark.e2e

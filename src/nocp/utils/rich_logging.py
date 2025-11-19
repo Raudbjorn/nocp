@@ -1,54 +1,57 @@
 """Enhanced logging with Rich library"""
-from typing import Optional, Dict, Any, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any, Optional
+
+import structlog
 from rich.console import Console
-from rich.logging import RichHandler
-from rich.theme import Theme
-from rich.table import Table
 from rich.panel import Panel
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
+    TaskProgressColumn,
     TextColumn,
-    BarColumn,
     TimeElapsedColumn,
-    TaskProgressColumn
 )
-from rich.tree import Tree
+from rich.table import Table
+from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
-import structlog
+from rich.tree import Tree
 
 if TYPE_CHECKING:
     from ..core.config import ProxyConfig
     from ..models.schemas import ContextMetrics
 
 # Custom NOCP theme
-NOCP_THEME = Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "bold red",
-    "success": "bold green",
-    "metric": "magenta",
-    "token": "blue",
-    "cost": "green",
-    "savings": "bright_green",
-    "latency": "cyan",
-    "tool": "blue",
-    "compression": "yellow",
-})
+NOCP_THEME = Theme(
+    {
+        "info": "cyan",
+        "warning": "yellow",
+        "error": "bold red",
+        "success": "bold green",
+        "metric": "magenta",
+        "token": "blue",
+        "cost": "green",
+        "savings": "bright_green",
+        "latency": "cyan",
+        "tool": "blue",
+        "compression": "yellow",
+    }
+)
 
 
 class NOCPConsole:
     """Singleton console with NOCP branding and theme"""
 
-    _instance: Optional['NOCPConsole'] = None
+    _instance: Optional["NOCPConsole"] = None
 
-    def __new__(cls) -> 'NOCPConsole':
+    def __new__(cls) -> "NOCPConsole":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'initialized'):
+        if not hasattr(self, "initialized"):
             self.console = Console(theme=NOCP_THEME)
             self.initialized = True
 
@@ -58,7 +61,7 @@ class NOCPConsole:
             Panel.fit(
                 "[bold cyan]NOCP[/bold cyan] - High-Efficiency LLM Proxy Agent\n"
                 "[dim]Token Optimization • Cost Reduction • Smart Compression[/dim]",
-                border_style="cyan"
+                border_style="cyan",
             )
         )
 
@@ -69,7 +72,9 @@ class NOCPConsole:
         table.add_column("Value", style="yellow")
 
         # Core settings
-        model_display = config.litellm_default_model if config.enable_litellm else config.gemini_model
+        model_display = (
+            config.litellm_default_model if config.enable_litellm else config.gemini_model
+        )
         table.add_row("Model", model_display)
         table.add_row("Max Input Tokens", f"{config.max_input_tokens:,}")
         table.add_row("Max Output Tokens", f"{config.max_output_tokens:,}")
@@ -107,20 +112,18 @@ class NOCPConsole:
         table.add_column("Details", style="dim")
 
         # Transaction ID
-        table.add_row(
-            "Transaction ID",
-            metrics.transaction_id[:8] + "...",
-            ""
-        )
+        table.add_row("Transaction ID", metrics.transaction_id[:8] + "...", "")
 
         # Token metrics
         input_savings = metrics.raw_input_tokens - metrics.compressed_input_tokens
         has_raw_input_tokens = metrics.raw_input_tokens > 0
-        input_reduction_pct = (input_savings / metrics.raw_input_tokens * 100) if has_raw_input_tokens else 0
+        input_reduction_pct = (
+            (input_savings / metrics.raw_input_tokens * 100) if has_raw_input_tokens else 0
+        )
         table.add_row(
             "Input Tokens",
             f"{metrics.compressed_input_tokens:,}",
-            f"[dim]saved {input_savings:,} ({input_reduction_pct:.1f}%)[/dim]"
+            f"[dim]saved {input_savings:,} ({input_reduction_pct:.1f}%)[/dim]",
         )
 
         # Output tokens
@@ -128,15 +131,13 @@ class NOCPConsole:
         table.add_row(
             "Output Tokens",
             f"{metrics.raw_output_tokens:,}",
-            f"[dim]saved {output_savings:,} via {metrics.final_output_format.upper()}[/dim]"
+            f"[dim]saved {output_savings:,} via {metrics.final_output_format.upper()}[/dim]",
         )
 
         # Total savings
         total_savings = input_savings + output_savings
         table.add_row(
-            "[bold]Total Token Savings[/bold]",
-            f"[bold green]{total_savings:,}[/bold green]",
-            ""
+            "[bold]Total Token Savings[/bold]", f"[bold green]{total_savings:,}[/bold green]", ""
         )
 
         # Latency breakdown
@@ -144,50 +145,47 @@ class NOCPConsole:
             "Latency",
             f"{metrics.total_latency_ms:.0f}ms",
             f"[dim]compression: {metrics.compression_latency_ms:.0f}ms, "
-            f"LLM: {metrics.llm_inference_latency_ms:.0f}ms[/dim]"
+            f"LLM: {metrics.llm_inference_latency_ms:.0f}ms[/dim]",
         )
 
         # Format and compression
         table.add_row(
             "Output Format",
             metrics.final_output_format.upper(),
-            f"[dim]{len(metrics.tools_used)} tools used[/dim]"
+            f"[dim]{len(metrics.tools_used)} tools used[/dim]",
         )
 
         if metrics.compression_operations:
-            ops = ", ".join([
-                f"{op.compression_method} ({op.compression_ratio:.0%})"
-                for op in metrics.compression_operations
-            ])
+            ops = ", ".join(
+                [
+                    f"{op.compression_method} ({op.compression_ratio:.0%})"
+                    for op in metrics.compression_operations
+                ]
+            )
             table.add_row(
-                "Compression",
-                f"{len(metrics.compression_operations)} ops",
-                f"[dim]{ops}[/dim]"
+                "Compression", f"{len(metrics.compression_operations)} ops", f"[dim]{ops}[/dim]"
             )
 
         self.console.print(table)
 
-    def print_operation_tree(self, operations: Dict[str, Any]):
+    def print_operation_tree(self, operations: dict[str, Any]):
         """Print operation hierarchy as tree"""
         tree = Tree("[bold cyan]Request Pipeline[/bold cyan]")
 
         # Act phase
         act_branch = tree.add("[blue]⚡ Act[/blue] - Tool Execution")
-        for tool in operations.get('tools', []):
-            duration = tool.get('duration_ms', 0)
-            tool_name = tool.get('name', 'Unknown Tool')
+        for tool in operations.get("tools", []):
+            duration = tool.get("duration_ms", 0)
+            tool_name = tool.get("name", "Unknown Tool")
             act_branch.add(f"✓ {tool_name} ({duration:.0f}ms)")
 
         # Assess phase
         assess_branch = tree.add("[yellow]🔍 Assess[/yellow] - Context Optimization")
-        for compression in operations.get('compressions', []):
-            ratio = compression.get('ratio', 1.0)
-            method = compression.get('method', 'unknown')
+        for compression in operations.get("compressions", []):
+            ratio = compression.get("ratio", 1.0)
+            method = compression.get("method", "unknown")
             reduction_pct = (1 - ratio) * 100
-            assess_branch.add(
-                f"✓ {method} "
-                f"({reduction_pct:.0%} reduction)"
-            )
+            assess_branch.add(f"✓ {method} " f"({reduction_pct:.0%} reduction)")
 
         # LLM phase
         llm_branch = tree.add("[magenta]🤖 LLM[/magenta] - Inference")
@@ -208,7 +206,7 @@ class NOCPConsole:
             BarColumn(),
             TaskProgressColumn(),
             TimeElapsedColumn(),
-            console=self.console
+            console=self.console,
         )
 
     def print_success(self, message: str):

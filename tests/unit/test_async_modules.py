@@ -5,30 +5,29 @@ Tests for async modules (AsyncContextManager, AsyncOutputSerializer, ConcurrentT
 import asyncio
 import time
 from datetime import datetime
-from typing import List
 
 import pytest
-from pydantic import BaseModel, Field
-
 from nocp.core.act import ToolExecutor
 from nocp.core.async_modules import (
     AsyncContextManager,
     AsyncOutputSerializer,
-    ConcurrentToolExecutor
+    ConcurrentToolExecutor,
 )
 from nocp.models.contracts import (
+    CompressionMethod,
     ContextData,
-    ToolResult,
-    ToolRequest,
-    ToolType,
-    SerializationRequest,
     SerializationFormat,
-    CompressionMethod
+    SerializationRequest,
+    ToolRequest,
+    ToolResult,
+    ToolType,
 )
+from pydantic import BaseModel
 
 
 class User(BaseModel):
     """Sample model for testing."""
+
     id: int
     name: str
     email: str
@@ -36,17 +35,15 @@ class User(BaseModel):
 
 class UserListResponse(BaseModel):
     """Sample model with list for testing."""
-    users: List[User]
+
+    users: list[User]
     total: int
 
 
 @pytest.fixture
 def sample_users():
     """Create sample user data."""
-    users = [
-        User(id=i, name=f"User {i}", email=f"user{i}@example.com")
-        for i in range(10)
-    ]
+    users = [User(id=i, name=f"User {i}", email=f"user{i}@example.com") for i in range(10)]
     return UserListResponse(users=users, total=10)
 
 
@@ -61,7 +58,7 @@ def sample_tool_results():
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=25
+            token_estimate=25,
         )
         for i in range(5)
     ]
@@ -76,7 +73,7 @@ class TestAsyncContextManager:
         manager = AsyncContextManager(
             student_model="openai/gpt-4o-mini",
             compression_threshold=5000,
-            target_compression_ratio=0.35
+            target_compression_ratio=0.35,
         )
 
         assert manager.student_model == "openai/gpt-4o-mini"
@@ -86,15 +83,10 @@ class TestAsyncContextManager:
     @pytest.mark.asyncio
     async def test_optimize_below_threshold(self, sample_tool_results):
         """Test that context below threshold is not compressed."""
-        manager = AsyncContextManager(
-            compression_threshold=10000,
-            enable_litellm=False
-        )
+        manager = AsyncContextManager(compression_threshold=10000, enable_litellm=False)
 
         context = ContextData(
-            tool_results=sample_tool_results,
-            transient_context={"query": "test"},
-            max_tokens=50000
+            tool_results=sample_tool_results, transient_context={"query": "test"}, max_tokens=50000
         )
 
         result = await manager.optimize_async(context)
@@ -107,9 +99,7 @@ class TestAsyncContextManager:
     async def test_semantic_pruning(self):
         """Test semantic pruning compression."""
         manager = AsyncContextManager(
-            compression_threshold=100,
-            target_compression_ratio=0.4,
-            enable_litellm=False
+            compression_threshold=100, target_compression_ratio=0.4, enable_litellm=False
         )
 
         # Create large list data
@@ -121,13 +111,10 @@ class TestAsyncContextManager:
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=2000
+            token_estimate=2000,
         )
 
-        context = ContextData(
-            tool_results=[tool_result],
-            max_tokens=50000
-        )
+        context = ContextData(tool_results=[tool_result], max_tokens=50000)
 
         result = await manager.optimize_async(context)
 
@@ -141,7 +128,7 @@ class TestAsyncContextManager:
         manager = AsyncContextManager(
             compression_threshold=100,
             target_compression_ratio=0.4,
-            enable_litellm=False  # Disabled for testing
+            enable_litellm=False,  # Disabled for testing
         )
 
         # Create verbose text data
@@ -153,13 +140,10 @@ class TestAsyncContextManager:
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=6000
+            token_estimate=6000,
         )
 
-        context = ContextData(
-            tool_results=[tool_result],
-            max_tokens=50000
-        )
+        context = ContextData(tool_results=[tool_result], max_tokens=50000)
 
         result = await manager.optimize_async(context)
 
@@ -170,10 +154,7 @@ class TestAsyncContextManager:
     @pytest.mark.asyncio
     async def test_history_compaction(self):
         """Test history compaction compression."""
-        manager = AsyncContextManager(
-            compression_threshold=100,
-            enable_litellm=False
-        )
+        manager = AsyncContextManager(compression_threshold=100, enable_litellm=False)
 
         # Create many messages
         from nocp.models.contracts import ChatMessage
@@ -183,16 +164,12 @@ class TestAsyncContextManager:
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i}",
                 timestamp=datetime.now(),
-                tokens=10
+                tokens=10,
             )
             for i in range(15)
         ]
 
-        context = ContextData(
-            tool_results=[],
-            message_history=messages,
-            max_tokens=50000
-        )
+        context = ContextData(tool_results=[], message_history=messages, max_tokens=50000)
 
         result = await manager.optimize_async(context)
 
@@ -225,7 +202,7 @@ class TestAsyncContextManager:
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=1500
+            token_estimate=1500,
         )
 
         context = ContextData(tool_results=[large_list_result], max_tokens=50000)
@@ -260,10 +237,7 @@ class TestAsyncOutputSerializer:
         """Test serialization with forced format."""
         serializer = AsyncOutputSerializer()
 
-        request = SerializationRequest(
-            data=sample_users,
-            force_format="compact_json"
-        )
+        request = SerializationRequest(data=sample_users, force_format="compact_json")
         result = await serializer.serialize_async(request)
 
         assert result.format_used == SerializationFormat.COMPACT_JSON
@@ -349,7 +323,7 @@ class TestConcurrentToolExecutor:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_tool",
-            parameters={"value": 5}
+            parameters={"value": 5},
         )
 
         result = await concurrent.execute_one(request)
@@ -374,7 +348,7 @@ class TestConcurrentToolExecutor:
                 tool_id="compute",
                 tool_type=ToolType.PYTHON_FUNCTION,
                 function_name="compute",
-                parameters={"value": i}
+                parameters={"value": i},
             )
             for i in range(10)
         ]
@@ -408,7 +382,7 @@ class TestConcurrentToolExecutor:
                 tool_id="identity",
                 tool_type=ToolType.PYTHON_FUNCTION,
                 function_name="identity",
-                parameters={"value": i}
+                parameters={"value": i},
             )
             for i in range(5)
         ]
@@ -452,7 +426,7 @@ class TestConcurrentToolExecutor:
                 tool_id="concurrent_test",
                 tool_type=ToolType.PYTHON_FUNCTION,
                 function_name="concurrent_test",
-                parameters={"value": i}
+                parameters={"value": i},
             )
             for i in range(10)
         ]
@@ -480,7 +454,7 @@ class TestConcurrentToolExecutor:
                 tool_id="failing_tool",
                 tool_type=ToolType.PYTHON_FUNCTION,
                 function_name="failing_tool",
-                parameters={"value": i}
+                parameters={"value": i},
             )
             for i in range(10)
         ]
@@ -514,7 +488,7 @@ class TestAsyncPerformance:
                 tool_id="slow_tool",
                 tool_type=ToolType.PYTHON_FUNCTION,
                 function_name="slow_tool",
-                parameters={"value": i}
+                parameters={"value": i},
             )
             for i in range(10)
         ]
@@ -550,15 +524,12 @@ class TestAsyncPerformance:
                 error=None,
                 execution_time_ms=10.0,
                 timestamp=datetime.now(),
-                token_estimate=50
+                token_estimate=50,
             )
             for i in range(10)
         ]
 
-        context = ContextData(
-            tool_results=tool_results,
-            max_tokens=50000
-        )
+        context = ContextData(tool_results=tool_results, max_tokens=50000)
 
         # Sync version
         sync_manager = ContextManager(compression_threshold=100, enable_litellm=False)

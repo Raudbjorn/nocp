@@ -2,13 +2,11 @@
 Tests for the caching layer (LRU cache and ChromaDB cache).
 """
 
-import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
-
-from nocp.core.cache import CacheConfig, LRUCache, ChromaDBCache
+from nocp.core.cache import CacheConfig, ChromaDBCache, LRUCache
 from nocp.models.contracts import ToolRequest, ToolResult, ToolType
 
 
@@ -32,7 +30,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         cache.set("key1", result)
@@ -58,7 +56,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         # Initial stats
@@ -97,7 +95,7 @@ class TestLRUCache:
                 error=None,
                 execution_time_ms=100.0,
                 timestamp=datetime.now(),
-                token_estimate=10
+                token_estimate=10,
             )
             cache.set(f"key_{i}", result)
 
@@ -125,7 +123,7 @@ class TestLRUCache:
                 error=None,
                 execution_time_ms=100.0,
                 timestamp=datetime.now(),
-                token_estimate=10
+                token_estimate=10,
             )
             cache.set(f"key_{i}", result)
 
@@ -140,7 +138,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
         cache.set("key_3", result)
 
@@ -160,7 +158,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         cache.set("key1", result)
@@ -185,7 +183,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         # Set with custom short TTL
@@ -211,7 +209,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         cache.set("key1", result)
@@ -228,7 +226,7 @@ class TestLRUCache:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value1"}
+            parameters={"param1": "value1"},
         )
 
         result = ToolResult(
@@ -238,7 +236,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         # Cache by request
@@ -257,14 +255,14 @@ class TestLRUCache:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value1", "param2": "value2"}
+            parameters={"param1": "value1", "param2": "value2"},
         )
 
         request2 = ToolRequest(
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param2": "value2", "param1": "value1"}  # Different order
+            parameters={"param2": "value2", "param1": "value1"},  # Different order
         )
 
         key1 = cache._generate_key(request1)
@@ -281,14 +279,14 @@ class TestLRUCache:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value1"}
+            parameters={"param1": "value1"},
         )
 
         request2 = ToolRequest(
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value2"}  # Different value
+            parameters={"param1": "value2"},  # Different value
         )
 
         key1 = cache._generate_key(request1)
@@ -308,7 +306,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         cache.set("key1", result)
@@ -330,7 +328,7 @@ class TestLRUCache:
                 error=None,
                 execution_time_ms=100.0,
                 timestamp=datetime.now(),
-                token_estimate=10
+                token_estimate=10,
             )
             cache.set(f"key_{i}", result)
 
@@ -353,7 +351,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         await cache.set_async("key1", result)
@@ -371,7 +369,7 @@ class TestLRUCache:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value1"}
+            parameters={"param1": "value1"},
         )
 
         result = ToolResult(
@@ -381,7 +379,7 @@ class TestLRUCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         await cache.set_by_request_async(request, result)
@@ -426,7 +424,7 @@ class TestChromaDBCache:
     def chromadb_available(self):
         """Check if ChromaDB is available."""
         try:
-            import chromadb
+
             return True
         except Exception:
             pytest.skip("ChromaDB not installed")
@@ -449,7 +447,7 @@ class TestChromaDBCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         chromadb_cache.set("key1", result)
@@ -468,7 +466,7 @@ class TestChromaDBCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         chromadb_cache.set("key1", result, ttl_seconds=1)
@@ -488,7 +486,7 @@ class TestChromaDBCache:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "value1"}
+            parameters={"param1": "value1"},
         )
 
         result = ToolResult(
@@ -498,7 +496,7 @@ class TestChromaDBCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         chromadb_cache.set_by_request(request, result)
@@ -517,7 +515,7 @@ class TestChromaDBCache:
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
         await chromadb_cache.set_async("key1", result)
@@ -556,7 +554,7 @@ class TestCacheIntegration:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "test"}
+            parameters={"param1": "test"},
         )
 
         # First execution (cache miss)
@@ -589,7 +587,7 @@ class TestCacheIntegration:
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="test_func",
-            parameters={"param1": "test"}
+            parameters={"param1": "test"},
         )
 
         # Execute with cache disabled
@@ -620,7 +618,7 @@ class TestCacheIntegration:
             tool_id="async_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="async_func",
-            parameters={"param1": "test"}
+            parameters={"param1": "test"},
         )
 
         # First execution (cache miss)
