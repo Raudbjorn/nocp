@@ -5,7 +5,7 @@
 # Comprehensive git/GitHub status monitoring and CI/CD integration
 
 # Check bash version (requires bash 4.3+ for namerefs)
-if [ "${BASH_VERSINFO[0]}" -lt 4 ] || ([ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]); then
+if [[ "${BASH_VERSINFO[0]}" -lt 4 || ( "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -lt 3 ) ]]; then
     echo "Error: This script requires bash 4.3 or later (found ${BASH_VERSION})" >&2
     echo "On macOS, install with: brew install bash" >&2
     exit 1
