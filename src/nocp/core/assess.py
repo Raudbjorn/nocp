@@ -279,7 +279,7 @@ class ContextManager:
                         "pruned": True,
                         "kept": len(items_to_keep),
                         "total": len(items),
-                        "reduction_pct": round((1 - len(items_to_keep) / len(items)) * 100, 1)
+                        "reduction_pct": round((1 - len(items_to_keep) / len(items)) * 100, 1) if len(items) > 0 else 0.0
                     }
                 })
             elif isinstance(result.data, str) and len(result.data) > 1000:
