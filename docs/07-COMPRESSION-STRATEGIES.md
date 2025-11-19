@@ -38,12 +38,12 @@ Before (2000 tokens):
 ```json
 {
   "users": [
-    {"id": "1", "name": "Alice", "email": "alice@ex.com", "created": "2024-01-01", "updated": "2024-01-01", ...},
-    {"id": "2", "name": "Bob", "email": "bob@ex.com", "created": "2024-01-01", "updated": "2024-01-01", ...},
-    // ... 100 more users
+    {"id": "1", "name": "Alice", "email": "alice@ex.com", "created": "2024-01-01", "updated": "2024-01-01"},
+    {"id": "2", "name": "Bob", "email": "bob@ex.com", "created": "2024-01-01", "updated": "2024-01-01"}
   ]
 }
 ```
+Note: The full list contains 100 more similar user objects.
 
 After (700 tokens):
 ```json
@@ -137,18 +137,25 @@ Turn 16-20: [verbatim recent conversation]
 
 ## Cost-of-Compression Calculus
 
-NOCP automatically calculates whether compression is worthwhile:
+NOCP automatically calculates whether compression is worthwhile based on token efficiency:
 
 ```python
-compression_cost = (tokens_to_compress / 1_000_000) * student_model_cost_per_million
-token_savings = original_tokens - compressed_tokens
-main_model_savings = (token_savings / 1_000_000) * main_model_cost_per_million
+# The calculus is based on token counts, not monetary cost.
+# compression_cost is the number of tokens used by the student model.
+compression_cost = tokens_used_by_student_model
+net_token_savings = original_tokens - compressed_tokens - compression_cost
 
-if main_model_savings > compression_cost:
-    # Compress
+# The decision to use the compressed version depends on whether the
+# net savings are significant enough, determined by a multiplier.
+justification_threshold = compression_cost * config.compression_cost_multiplier
+
+if net_token_savings > justification_threshold:
+    # Compress - the token savings justify the compression overhead
 else:
-    # Use original
+    # Use original - compression doesn't provide enough benefit
 ```
+
+The `compression_cost_multiplier` (default: 2.0) ensures compression provides meaningful savings beyond just breaking even. For example, with a multiplier of 2.0, the net token savings must be at least twice the tokens spent on compression.
 
 ## Combining Strategies
 
@@ -162,10 +169,16 @@ config = ProxyConfig(
 )
 ```
 
-**Order of operations**:
-1. Semantic Pruning (structural optimization)
-2. Knowledge Distillation (content summarization)
-3. History Compaction (temporal optimization)
+**How strategies are applied**:
+
+These strategies operate on different parts of the request context and are not necessarily applied sequentially to the same content:
+
+- **Semantic Pruning** and **Knowledge Distillation** operate on tool outputs when they exceed configured thresholds
+- **History Compaction** operates on conversation history to manage multi-turn interactions
+
+Within tool output compression, when both are enabled:
+1. Semantic Pruning is applied first (structural optimization)
+2. Knowledge Distillation may be applied to the result (content summarization)
 
 ## Best Practices
 
@@ -175,8 +188,8 @@ Set different thresholds for different tools:
 
 ```python
 config = ProxyConfig()
-config.set_tool_compression_threshold("database_query", 10_000)
-config.set_tool_compression_threshold("web_search", 5_000)
+config.register_tool_threshold("database_query", 10_000)
+config.register_tool_threshold("web_search", 5_000)
 ```
 
 ### 2. Monitor Compression Ratios
@@ -184,7 +197,7 @@ config.set_tool_compression_threshold("web_search", 5_000)
 Track compression effectiveness:
 
 ```python
-metrics = agent.process_request(request)
+response, metrics = agent.process_request(request)
 
 if metrics.input_compression_ratio > 0.8:  # <20% compression
     logger.warning("Low compression ratio - consider adjusting thresholds")
@@ -210,18 +223,31 @@ if similarity < 0.8:
 
 ### 4. A/B Testing
 
-Compare compressed vs uncompressed:
+Compare compressed vs uncompressed by using different configurations:
 
 ```python
-# Process with compression
-compressed_response = agent.process(request, enable_compression=True)
+# Create agent with compression enabled
+compressed_config = ProxyConfig(
+    enable_semantic_pruning=True,
+    enable_knowledge_distillation=True
+)
+compressed_agent = NOCPAgent(compressed_config)
 
-# Process without compression
-uncompressed_response = agent.process(request, enable_compression=False)
+# Create agent with compression disabled
+uncompressed_config = ProxyConfig(
+    enable_semantic_pruning=False,
+    enable_knowledge_distillation=False
+)
+uncompressed_agent = NOCPAgent(uncompressed_config)
 
-# Compare quality and cost
+# Process the same request with both configurations
+compressed_response, compressed_metrics = compressed_agent.process_request(request)
+uncompressed_response, uncompressed_metrics = uncompressed_agent.process_request(request)
+
+# Compare quality and efficiency
 print(f"Compressed quality: {evaluate_quality(compressed_response)}")
-print(f"Cost savings: {compressed_response.cost_savings}")
+print(f"Uncompressed quality: {evaluate_quality(uncompressed_response)}")
+print(f"Token savings: {uncompressed_metrics.raw_input_tokens - compressed_metrics.compressed_input_tokens:,}")
 ```
 
 ## Troubleshooting
@@ -234,7 +260,7 @@ print(f"Cost savings: {compressed_response.cost_savings}")
 - Lower compression threshold
 - Enable additional strategies
 - Check data for actual redundancy
-- Increase target compression ratio
+- Decrease target compression ratio (make compression more aggressive)
 
 ### Over-Compression
 
@@ -262,23 +288,39 @@ Key metrics tracked by NOCP:
 
 ```python
 class ContextMetrics:
-    raw_input_tokens: int              # Before compression
-    compressed_input_tokens: int       # After compression
-    input_compression_ratio: float     # Compressed / Raw
+    transaction_id: str                          # Unique identifier for this request
+    raw_input_tokens: int                        # Before compression
+    compressed_input_tokens: int                 # After compression
+    input_compression_ratio: float               # Compressed / Raw (e.g., 0.7 = 30% reduction)
 
-    compression_latency_ms: float      # Time spent compressing
-    llm_inference_latency_ms: float    # Time spent in LLM
+    raw_output_tokens: int                       # Output tokens from LLM
+    final_output_format: str                     # Format of the final output
+    output_token_savings: int                    # Tokens saved in output
 
-    compression_operations: List[str]  # Which strategies were used
-    token_savings: int                 # Total tokens saved
+    total_latency_ms: float                      # Total request time
+    compression_latency_ms: float                # Time spent compressing
+    llm_inference_latency_ms: float              # Time spent in LLM
+
+    tools_used: List[str]                        # Which tools were called
+    compression_operations: List[CompressionResult]  # Detailed compression info
 ```
+
+Each `CompressionResult` contains:
+- `compression_method`: The strategy used (e.g., "semantic_pruning", "knowledge_distillation")
+- `original_size`: Tokens before compression
+- `compressed_size`: Tokens after compression
+- `compression_ratio`: Ratio of compressed to original
 
 Access via:
 
 ```python
 response, metrics = agent.process_request(request)
 
-print(f"Token savings: {metrics.raw_input_tokens - metrics.compressed_input_tokens:,}")
+print(f"Input token savings: {metrics.raw_input_tokens - metrics.compressed_input_tokens:,}")
 print(f"Compression ratio: {metrics.input_compression_ratio:.0%}")
-print(f"Strategies used: {', '.join(metrics.compression_operations)}")
+print(f"Strategies used: {', '.join([op.compression_method for op in metrics.compression_operations])}")
+
+# Access detailed compression information
+for op in metrics.compression_operations:
+    print(f"  {op.compression_method}: {op.original_size} -> {op.compressed_size} tokens ({op.compression_ratio:.0%})")
 ```
