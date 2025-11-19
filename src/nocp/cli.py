@@ -351,6 +351,9 @@ def config_load(
     except FileNotFoundError as e:
         console.print(f"[bold red]✗[/bold red] {e}")
         sys.exit(1)
+    except (ValidationError, yaml.YAMLError) as e:
+        console.print(f"[bold red]✗[/bold red] Invalid configuration file: {e}")
+        sys.exit(1)
     except Exception as e:
         console.print(f"[bold red]✗[/bold red] Load failed: {e}")
         sys.exit(1)
