@@ -14,7 +14,6 @@ from ..core.config import get_config
 from ..llm.client import LLMClient
 from ..llm.router import ModelRouter
 from ..models.context import PersistentContext, TransientContext
-from ..models.enums import OutputFormat
 from ..models.schemas import (
     AgentRequest,
     AgentResponse,
@@ -27,6 +26,7 @@ from ..modules.output_serializer import OutputSerializer
 from ..modules.router import RequestRouter
 from ..modules.tool_executor import ToolExecutor
 from ..utils.logging import agent_logger, get_logger, get_metrics_logger, log_metrics
+from ..utils.rich_logging import console
 from ..utils.token_counter import TokenCounter
 
 
@@ -59,6 +59,11 @@ class HighEfficiencyProxyAgent:
         # Setup logging
         self.logger = get_logger(__name__)
         self.logger.info("initializing_proxy_agent")
+
+        # Print startup banner (if rich console is enabled)
+        if self.config.enable_rich_console:
+            console.print_banner()
+            console.print_config_summary(self.config)
 
         # Initialize token counter
         self.token_counter = TokenCounter(model_name)
@@ -132,7 +137,7 @@ class HighEfficiencyProxyAgent:
     def process_request(
         self,
         request: AgentRequest,
-        return_format: OutputFormat | None = None,
+        return_format: str | None = None,
     ) -> tuple[str, ContextMetrics]:
         """
         Process an agent request end-to-end.
@@ -196,7 +201,7 @@ class HighEfficiencyProxyAgent:
 
             serialized_output, output_format, token_savings = self.output_serializer.serialize(
                 response=agent_response,
-                force_format=return_format,
+                force_format=return_format,  # type: ignore[arg-type]
             )
 
             serialization_time = (time.perf_counter() - serialization_start) * 1000
@@ -236,6 +241,10 @@ class HighEfficiencyProxyAgent:
             # Log metrics
             log_metrics(metrics)
 
+            # Print beautiful metrics table (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_metrics(metrics)
+
             # Update session
             self.router.finalize_session(
                 persistent_ctx=persistent_ctx,
@@ -252,6 +261,13 @@ class HighEfficiencyProxyAgent:
                 compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
+            # Print success message (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_success(
+                    f"Request processed successfully - saved {input_token_savings + token_savings:,} tokens"
+                )
+
+            # Log operation completion with component logger
             agent_logger.log_operation_complete(
                 "agent_request",
                 duration_ms=total_latency_ms,
@@ -272,6 +288,10 @@ class HighEfficiencyProxyAgent:
                 transaction_id=transaction_id,
                 error=str(e),
             )
+            if self.config.enable_rich_console:
+                console.print_error(f"Request processing failed: {str(e)}")
+
+            # Log error with component logger
             agent_logger.log_operation_error("agent_request", e, {"transaction_id": transaction_id})
             raise
 

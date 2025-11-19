@@ -20,6 +20,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
+    "pyyaml>=6.0.0",
     "tomli>=2.0.0; python_version < '3.11'",
 ]
 
@@ -124,25 +125,26 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "-ra",
-    "-q",
+    "-v",
     "--strict-markers",
-    "--strict-config",
-    "--doctest-modules",
+    "--tb=short",
 ]
 markers = [
-    "unit: Fast unit tests with no external dependencies",
+    "unit: Fast unit tests with no external dependencies (<100ms each)",
     "integration: Integration tests that may call external APIs",
     "e2e: End-to-end workflow tests",
     "performance: Performance benchmarks",
-    "requires_api_key: Requires GEMINI_API_KEY environment variable",
-    "slow: Tests taking >1 second (deselect with '-m \"not slow\"')",
+    "requires_api_key: Tests requiring GEMINI_API_KEY",
+    "slow: Tests taking >1 second",
 ]
 filterwarnings = [
     "default",
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+
+# Coverage can be run separately with:
+# pytest --cov=nocp --cov-report=term-missing --cov-report=html
 
 [tool.coverage.run]
 source = ["src/nocp"]

@@ -17,11 +17,11 @@ from ..models.contracts import (
     CompressionMethod,
     ContextData,
     OptimizedContext,
-    OutputFormat,
     SerializationRequest,
     SerializedOutput,
     ToolRequest,
 )
+from ..models.enums import OutputFormat
 from ..serializers.toon import TOONEncoder
 
 logger = logging.getLogger(__name__)

@@ -13,6 +13,22 @@ from nocp.core.config import ProxyConfig
 from nocp.models.contracts import ContextData, ToolResult
 
 
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--run-slow", action="store_true", default=False, help="Run slow tests (>1 second)"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip slow tests unless --run-slow is specified."""
+    if not config.getoption("--run-slow", default=False):
+        skip_slow = pytest.mark.skip(reason="need --run-slow option to run")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
+
+
 @pytest.fixture
 def tool_executor():
     """Create a ToolExecutor with sample tools."""
