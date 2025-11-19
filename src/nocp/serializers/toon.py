@@ -6,7 +6,8 @@ Combines indentation-based structure for nested objects with CSV-style
 tabular layout for uniform arrays.
 """
 
-from typing import Any, Dict, List
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -46,12 +47,7 @@ class TOONEncoder:
 
         return self._encode_value(data, indent=0, length_marker=length_marker)
 
-    def _encode_value(
-        self,
-        value: Any,
-        indent: int,
-        length_marker: str
-    ) -> str:
+    def _encode_value(self, value: Any, indent: int, length_marker: str) -> str:
         """Recursively encode a value."""
         if isinstance(value, dict):
             return self._encode_dict(value, indent, length_marker)
@@ -60,12 +56,7 @@ class TOONEncoder:
         else:
             return str(value)
 
-    def _encode_dict(
-        self,
-        obj: Dict[str, Any],
-        indent: int,
-        length_marker: str
-    ) -> str:
+    def _encode_dict(self, obj: dict[str, Any], indent: int, length_marker: str) -> str:
         """Encode dictionary as indented key-value pairs."""
         lines = []
         indent_str = "  " * indent
@@ -83,12 +74,7 @@ class TOONEncoder:
 
         return "\n".join(lines)
 
-    def _encode_list(
-        self,
-        arr: List[Any],
-        indent: int,
-        length_marker: str
-    ) -> str:
+    def _encode_list(self, arr: list[Any], indent: int, length_marker: str) -> str:
         """Encode list, using tabular format if uniform."""
         if self._is_uniform_list(arr):
             return self._encode_tabular(arr, indent)
@@ -100,7 +86,7 @@ class TOONEncoder:
                 lines.append(f"{indent_str}- {self._encode_value(item, indent + 1, length_marker)}")
             return "\n".join(lines)
 
-    def _is_uniform_list(self, arr: List[Any]) -> bool:
+    def _is_uniform_list(self, arr: list[Any]) -> bool:
         """Check if list contains uniform dictionaries (same keys)."""
         if not arr or not isinstance(arr[0], dict):
             return False
@@ -108,7 +94,7 @@ class TOONEncoder:
         first_keys = set(arr[0].keys())
         return all(isinstance(item, dict) and set(item.keys()) == first_keys for item in arr)
 
-    def _encode_tabular(self, arr: List[Dict[str, Any]], indent: int) -> str:
+    def _encode_tabular(self, arr: list[dict[str, Any]], indent: int) -> str:
         """Encode uniform list as CSV-style table."""
         if not arr:
             return ""

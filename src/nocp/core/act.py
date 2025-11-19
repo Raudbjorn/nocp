@@ -8,8 +8,9 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from ..exceptions import ToolExecutionError
 from ..models.contracts import ToolRequest, ToolResult, ToolType
@@ -38,13 +39,11 @@ class ToolExecutor:
     """
 
     def __init__(self):
-        self._registry: Dict[str, Callable] = {}
-        self._async_registry: Dict[str, Callable] = {}
+        self._registry: dict[str, Callable] = {}
+        self._async_registry: dict[str, Callable] = {}
 
     def register_tool(
-        self,
-        tool_id: str,
-        tool_type: ToolType = ToolType.PYTHON_FUNCTION
+        self, tool_id: str, tool_type: ToolType = ToolType.PYTHON_FUNCTION
     ) -> Callable:
         """
         Decorator to register a synchronous tool.
@@ -61,16 +60,20 @@ class ToolExecutor:
             def my_tool(param: str) -> str:
                 return param.upper()
         """
+
         def decorator(func: Callable) -> Callable:
             self._registry[tool_id] = func
             return func
+
         return decorator
 
     def register_async_tool(self, tool_id: str) -> Callable:
         """Decorator to register an async tool."""
+
         def decorator(func: Callable) -> Callable:
             self._async_registry[tool_id] = func
             return func
+
         return decorator
 
     def execute(self, request: ToolRequest) -> ToolResult:
@@ -97,7 +100,7 @@ class ToolExecutor:
         if request.tool_id not in self._registry:
             raise ToolExecutionError(
                 f"Tool '{request.tool_id}' not found in registry",
-                details={"tool_id": request.tool_id}
+                details={"tool_id": request.tool_id},
             )
 
         retry_config = request.retry_config
@@ -112,9 +115,7 @@ class ToolExecutor:
                 # Execute tool with timeout
                 func = self._registry[request.tool_id]
                 result = self._execute_with_timeout(
-                    func,
-                    request.parameters,
-                    request.timeout_seconds
+                    func, request.parameters, request.timeout_seconds
                 )
 
                 execution_time = (time.perf_counter() - start) * 1000
@@ -130,17 +131,18 @@ class ToolExecutor:
                     execution_time_ms=execution_time,
                     timestamp=datetime.now(),
                     token_estimate=token_estimate,
-                    retry_count=attempt
+                    retry_count=attempt,
                 )
 
-            except TimeoutError as e:
+            except TimeoutError:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
                 is_timeout = True
                 if attempt < max_attempts - 1:
                     # Exponential backoff
                     if retry_config:
-                        delay = (retry_config.initial_delay_ms / 1000) * \
-                                (retry_config.backoff_multiplier ** attempt)
+                        delay = (retry_config.initial_delay_ms / 1000) * (
+                            retry_config.backoff_multiplier**attempt
+                        )
                         time.sleep(delay)
                 continue
 
@@ -150,8 +152,9 @@ class ToolExecutor:
                 if attempt < max_attempts - 1:
                     # Exponential backoff
                     if retry_config:
-                        delay = (retry_config.initial_delay_ms / 1000) * \
-                                (retry_config.backoff_multiplier ** attempt)
+                        delay = (retry_config.initial_delay_ms / 1000) * (
+                            retry_config.backoff_multiplier**attempt
+                        )
                         time.sleep(delay)
                 continue
 
@@ -164,8 +167,8 @@ class ToolExecutor:
                 details={
                     "tool_id": request.tool_id,
                     "last_error": last_error,
-                    "attempts": max_attempts
-                }
+                    "attempts": max_attempts,
+                },
             )
 
     async def execute_async(self, request: ToolRequest) -> ToolResult:
@@ -185,7 +188,7 @@ class ToolExecutor:
         if request.tool_id not in self._async_registry:
             raise ToolExecutionError(
                 f"Async tool '{request.tool_id}' not found in registry",
-                details={"tool_id": request.tool_id}
+                details={"tool_id": request.tool_id},
             )
 
         retry_config = request.retry_config
@@ -200,8 +203,7 @@ class ToolExecutor:
                 # Execute async tool with timeout
                 func = self._async_registry[request.tool_id]
                 result = await asyncio.wait_for(
-                    func(**request.parameters),
-                    timeout=request.timeout_seconds
+                    func(**request.parameters), timeout=request.timeout_seconds
                 )
 
                 execution_time = (time.perf_counter() - start) * 1000
@@ -215,15 +217,16 @@ class ToolExecutor:
                     execution_time_ms=execution_time,
                     timestamp=datetime.now(),
                     token_estimate=token_estimate,
-                    retry_count=attempt
+                    retry_count=attempt,
                 )
 
             except asyncio.TimeoutError:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
                 is_timeout = True
                 if attempt < max_attempts - 1 and retry_config:
-                    delay = (retry_config.initial_delay_ms / 1000) * \
-                            (retry_config.backoff_multiplier ** attempt)
+                    delay = (retry_config.initial_delay_ms / 1000) * (
+                        retry_config.backoff_multiplier**attempt
+                    )
                     await asyncio.sleep(delay)
                 continue
 
@@ -231,8 +234,9 @@ class ToolExecutor:
                 last_error = str(e)
                 is_timeout = False
                 if attempt < max_attempts - 1 and retry_config:
-                    delay = (retry_config.initial_delay_ms / 1000) * \
-                            (retry_config.backoff_multiplier ** attempt)
+                    delay = (retry_config.initial_delay_ms / 1000) * (
+                        retry_config.backoff_multiplier**attempt
+                    )
                     await asyncio.sleep(delay)
                 continue
 
@@ -245,16 +249,11 @@ class ToolExecutor:
                 details={
                     "tool_id": request.tool_id,
                     "last_error": last_error,
-                    "attempts": max_attempts
-                }
+                    "attempts": max_attempts,
+                },
             )
 
-    def _execute_with_timeout(
-        self,
-        func: Callable,
-        params: Dict[str, Any],
-        timeout: int
-    ) -> Any:
+    def _execute_with_timeout(self, func: Callable, params: dict[str, Any], timeout: int) -> Any:
         """
         Execute function with timeout using concurrent.futures for cross-platform support.
 
@@ -272,7 +271,8 @@ class ToolExecutor:
         Raises:
             TimeoutError: If execution exceeds timeout
         """
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as FuturesTimeoutError
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(func, **params)

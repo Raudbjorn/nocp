@@ -5,9 +5,8 @@ Loads settings from environment variables and provides a centralized
 configuration object for all components.
 """
 
-import os
-from typing import Optional, Dict
 from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,120 +28,93 @@ class ProxyConfig(BaseSettings):
 
     # Gemini API Configuration
     gemini_api_key: str = Field(..., description="Google Gemini API key")
-    gemini_model: str = Field(
-        default="gemini-2.5-flash",
-        description="Primary Gemini model to use"
-    )
+    gemini_model: str = Field(default="gemini-2.5-flash", description="Primary Gemini model to use")
 
     # Context Window Limits (Gemini 2.5 Flash defaults)
     max_input_tokens: int = Field(
-        default=1_048_576,
-        description="Maximum input tokens (1M for Gemini 2.5 Flash)"
+        default=1_048_576, description="Maximum input tokens (1M for Gemini 2.5 Flash)"
     )
     max_output_tokens: int = Field(
-        default=65_535,
-        description="Maximum output tokens for Gemini 2.5 Flash"
+        default=65_535, description="Maximum output tokens for Gemini 2.5 Flash"
     )
 
     # Dynamic Compression Configuration
     default_compression_threshold: int = Field(
-        default=5000,
-        description="Default T_comp: activate compression above this token count"
+        default=5000, description="Default T_comp: activate compression above this token count"
     )
     compression_cost_multiplier: float = Field(
-        default=1.5,
-        description="Minimum savings multiplier to justify compression overhead"
+        default=1.5, description="Minimum savings multiplier to justify compression overhead"
     )
 
     # Student Summarizer Configuration
     student_summarizer_model: str = Field(
-        default="gemini-1.5-flash-8b",
-        description="Lightweight model for knowledge distillation"
+        default="gemini-1.5-flash-8b", description="Lightweight model for knowledge distillation"
     )
     student_summarizer_max_tokens: int = Field(
-        default=2000,
-        description="Maximum output tokens for student summarizer"
+        default=2000, description="Maximum output tokens for student summarizer"
     )
 
     # Compression Strategy Toggles
     enable_semantic_pruning: bool = Field(
-        default=True,
-        description="Enable semantic pruning for RAG/document outputs"
+        default=True, description="Enable semantic pruning for RAG/document outputs"
     )
     enable_knowledge_distillation: bool = Field(
-        default=True,
-        description="Enable knowledge distillation via student summarizer"
+        default=True, description="Enable knowledge distillation via student summarizer"
     )
     enable_history_compaction: bool = Field(
-        default=True,
-        description="Enable conversation history compaction"
+        default=True, description="Enable conversation history compaction"
     )
 
     # Output Serialization Configuration
     default_output_format: str = Field(
-        default="toon",
-        description="Default output format: toon, compact_json, or json"
+        default="toon", description="Default output format: toon, compact_json, or json"
     )
     toon_fallback_threshold: float = Field(
-        default=0.3,
-        description="Tabularity threshold below which to fallback to compact JSON"
+        default=0.3, description="Tabularity threshold below which to fallback to compact JSON"
     )
     enable_format_negotiation: bool = Field(
-        default=True,
-        description="Enable automatic format negotiation based on data structure"
+        default=True, description="Enable automatic format negotiation based on data structure"
     )
 
     # Monitoring and Logging
     log_level: str = Field(default="INFO", description="Logging level")
     enable_metrics_logging: bool = Field(
-        default=True,
-        description="Enable detailed metrics logging"
+        default=True, description="Enable detailed metrics logging"
     )
     metrics_log_file: Path = Field(
-        default=Path("./logs/metrics.jsonl"),
-        description="Path to metrics log file"
+        default=Path("./logs/metrics.jsonl"), description="Path to metrics log file"
     )
     drift_detection_threshold: float = Field(
-        default=-1000.0,
-        description="Threshold for drift detection warning (negative delta trend)"
+        default=-1000.0, description="Threshold for drift detection warning (negative delta trend)"
     )
 
     # Multi-Cloud Configuration (LiteLLM)
-    enable_litellm: bool = Field(
-        default=True,
-        description="Enable LiteLLM for multi-cloud routing"
-    )
+    enable_litellm: bool = Field(default=True, description="Enable LiteLLM for multi-cloud routing")
     litellm_default_model: str = Field(
         default="gemini/gemini-2.0-flash-exp",
-        description="Default model in LiteLLM format (provider/model)"
+        description="Default model in LiteLLM format (provider/model)",
     )
-    litellm_fallback_models: Optional[str] = Field(
+    litellm_fallback_models: str | None = Field(
         default="gemini/gemini-1.5-flash,openai/gpt-4o-mini",
-        description="Comma-separated list of fallback models"
+        description="Comma-separated list of fallback models",
     )
     litellm_max_retries: int = Field(
-        default=3,
-        description="Maximum retry attempts for LiteLLM calls"
+        default=3, description="Maximum retry attempts for LiteLLM calls"
     )
-    litellm_timeout: int = Field(
-        default=60,
-        description="Request timeout in seconds for LiteLLM"
-    )
+    litellm_timeout: int = Field(default=60, description="Request timeout in seconds for LiteLLM")
 
     # OpenAI API Configuration (Optional for multi-cloud)
-    openai_api_key: Optional[str] = Field(
-        default=None,
-        description="OpenAI API key for multi-cloud routing"
+    openai_api_key: str | None = Field(
+        default=None, description="OpenAI API key for multi-cloud routing"
     )
 
     # Anthropic API Configuration (Optional for multi-cloud)
-    anthropic_api_key: Optional[str] = Field(
-        default=None,
-        description="Anthropic API key for multi-cloud routing"
+    anthropic_api_key: str | None = Field(
+        default=None, description="Anthropic API key for multi-cloud routing"
     )
 
     # Tool-specific compression thresholds (runtime registry)
-    _compression_thresholds: Dict[str, int] = {}
+    _compression_thresholds: dict[str, int] = {}
 
     def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
         """
@@ -154,7 +126,7 @@ class ProxyConfig(BaseSettings):
         """
         self._compression_thresholds[tool_name] = threshold
 
-    def get_compression_threshold(self, tool_name: Optional[str] = None) -> int:
+    def get_compression_threshold(self, tool_name: str | None = None) -> int:
         """
         Get compression threshold for a specific tool or default.
 
@@ -183,11 +155,12 @@ class ProxyConfig(BaseSettings):
             0.0 (cost tracking deprecated)
         """
         import warnings
+
         warnings.warn(
             "calculate_cost() is deprecated and will be removed in v2.0. "
             "Focus on token reduction metrics instead.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         return 0.0
 
@@ -202,7 +175,7 @@ class ProxyConfig(BaseSettings):
 
 
 # Global configuration instance
-_config: Optional[ProxyConfig] = None
+_config: ProxyConfig | None = None
 
 
 def get_config() -> ProxyConfig:

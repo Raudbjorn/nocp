@@ -4,15 +4,14 @@ Command-line interface for nocp.
 Provides commands for setup, running scripts, testing, and benchmarking.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.syntax import Syntax
 
 from . import __version__
 from .bootstrap import get_uv_command
@@ -34,9 +33,7 @@ def version():
 
 
 @app.command()
-def setup(
-    dev: bool = typer.Option(False, "--dev", help="Install development dependencies")
-):
+def setup(dev: bool = typer.Option(False, "--dev", help="Install development dependencies")):
     """
     Initialize the project and install dependencies.
 
@@ -50,18 +47,10 @@ def setup(
         # Sync dependencies
         if dev:
             console.print("📦 Installing project with dev dependencies...")
-            result = subprocess.run(
-                [*uv_cmd, "sync", "--all-extras"],
-                check=True,
-                capture_output=False
-            )
+            subprocess.run([*uv_cmd, "sync", "--all-extras"], check=True, capture_output=False)
         else:
             console.print("📦 Installing project dependencies...")
-            result = subprocess.run(
-                [*uv_cmd, "sync"],
-                check=True,
-                capture_output=False
-            )
+            subprocess.run([*uv_cmd, "sync"], check=True, capture_output=False)
 
         console.print("[bold green]✅ Setup complete![/bold green]")
         console.print("\n[dim]You can now run:[/dim]")
@@ -77,7 +66,7 @@ def setup(
 @app.command()
 def run(
     script: Path = typer.Argument(..., help="Python script to run"),
-    model: Optional[str] = typer.Option(None, "--model", help="Override default LLM model"),
+    model: str | None = typer.Option(None, "--model", help="Override default LLM model"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ):
     """
@@ -102,8 +91,8 @@ def run(
         # Run script via uv
         result = subprocess.run(
             [*uv_cmd, "run", "python", str(script)],
-            env={**subprocess.os.environ, **env},
-            check=True
+            env={**os.environ, **env},
+            check=True,
         )
         sys.exit(result.returncode)
 
@@ -114,7 +103,7 @@ def run(
 
 @app.command()
 def test(
-    path: Optional[str] = typer.Argument(None, help="Specific test file or directory"),
+    path: str | None = typer.Argument(None, help="Specific test file or directory"),
     cov: bool = typer.Option(False, "--cov", help="Generate coverage report"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Verbose output"),
 ):
@@ -158,10 +147,8 @@ def test(
 
 @app.command()
 def benchmark(
-    component: Optional[str] = typer.Option(
-        None,
-        "--component",
-        help="Benchmark specific component: act, assess, articulate, or full"
+    component: str | None = typer.Option(
+        None, "--component", help="Benchmark specific component: act, assess, articulate, or full"
     ),
     iterations: int = typer.Option(100, "--iterations", "-n", help="Number of iterations"),
 ):
@@ -190,10 +177,7 @@ def shell():
     uv_cmd = get_uv_command()
 
     try:
-        subprocess.run(
-            [*uv_cmd, "run", "python", "-i", "-c", "from nocp import *"],
-            check=True
-        )
+        subprocess.run([*uv_cmd, "run", "python", "-i", "-c", "from nocp import *"], check=True)
     except subprocess.CalledProcessError:
         sys.exit(1)
 
@@ -223,10 +207,11 @@ def health():
 
     # Check dependencies
     try:
-        import pydantic
-        import litellm
-        import rich
-        import typer
+        import litellm  # noqa: F401
+        import pydantic  # noqa: F401
+        import rich  # noqa: F401
+        import typer  # noqa: F401
+
         console.print("[green]✓[/green] Dependencies: OK")
     except ImportError as e:
         console.print(f"[red]✗[/red] Dependencies: MISSING ({e.name})")
@@ -234,7 +219,6 @@ def health():
         return
 
     # Check API keys (optional)
-    import os
     if os.getenv("OPENAI_API_KEY"):
         console.print("[green]✓[/green] OpenAI API key: SET")
     if os.getenv("ANTHROPIC_API_KEY"):

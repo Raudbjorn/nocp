@@ -7,7 +7,8 @@ These tools simulate common scenarios where context compression is beneficial:
 - Document retrieval (semantic pruning target)
 """
 
-from typing import Callable
+from collections.abc import Callable
+
 from ..models.schemas import ToolDefinition, ToolParameter
 
 
@@ -25,7 +26,8 @@ def search_database(query: str, limit: int = 10) -> str:
         Verbose search results
     """
     # Simulate verbose database results
-    results = [f"""
+    results = [
+        f"""
         Result {i+1}:
         Title: Product {i+1} - {query} Edition
         Description: This is a detailed description of product {i+1} that matches your search query '{query}'.
@@ -54,7 +56,9 @@ def search_database(query: str, limit: int = 10) -> str:
 
         Availability: In stock - Ships within 24 hours
         Customer Rating: 4.{5+i}/5.0 based on {100+i*50} reviews
-        """ for i in range(min(limit, 5))]
+        """
+        for i in range(min(limit, 5))
+    ]
 
     return "\n\n".join(results)
 

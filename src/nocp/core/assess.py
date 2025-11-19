@@ -8,15 +8,11 @@ Implements semantic pruning, knowledge distillation, and history compaction.
 import json
 import logging
 import time
-from typing import List, Optional
 
-from ..exceptions import CompressionError
 from ..models.contracts import (
+    CompressionMethod,
     ContextData,
     OptimizedContext,
-    CompressionMethod,
-    ToolResult,
-    ChatMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +43,7 @@ class ContextManager:
         student_model: str = "openai/gpt-4o-mini",
         compression_threshold: int = 10_000,
         target_compression_ratio: float = 0.40,
-        enable_litellm: bool = True
+        enable_litellm: bool = True,
     ):
         """
         Initialize Context Manager.
@@ -68,6 +64,7 @@ class ContextManager:
         if enable_litellm:
             try:
                 import litellm
+
                 self.litellm = litellm
             except ImportError:
                 logger.warning("litellm not available. Compression features limited.")
@@ -102,7 +99,7 @@ class ContextManager:
                 optimized_tokens=original_tokens,
                 compression_ratio=1.0,
                 method_used=CompressionMethod.NONE,
-                compression_time_ms=0.0
+                compression_time_ms=0.0,
             )
 
         # Step 3: Select strategy
@@ -144,10 +141,10 @@ class ContextManager:
             optimized_tokens=compressed_tokens,
             compression_ratio=compression_ratio,
             method_used=strategy,
-            compression_time_ms=compression_time
+            compression_time_ms=compression_time,
         )
 
-    def estimate_tokens(self, text: str, model: Optional[str] = None) -> int:
+    def estimate_tokens(self, text: str, model: str | None = None) -> int:
         """
         Estimate token count using litellm's token_counter with support for multiple models.
 
@@ -204,8 +201,7 @@ class ContextManager:
 
         # Check for verbose text
         total_text_tokens = sum(
-            r.token_estimate for r in context.tool_results
-            if isinstance(r.data, str)
+            r.token_estimate for r in context.tool_results if isinstance(r.data, str)
         )
         if total_text_tokens > 5000:
             return CompressionMethod.KNOWLEDGE_DISTILLATION
@@ -235,8 +231,7 @@ class ContextManager:
         """
         pruned_results = []
         target_tokens = int(
-            sum(r.token_estimate for r in context.tool_results) *
-            self.target_compression_ratio
+            sum(r.token_estimate for r in context.tool_results) * self.target_compression_ratio
         )
 
         current_tokens = 0
@@ -248,16 +243,18 @@ class ContextManager:
 
                 # Skip empty lists
                 if len(items) == 0:
-                    pruned_results.append({
-                        "tool_id": result.tool_id,
-                        "data": [],
-                        "metadata": {
-                            "pruned": False,
-                            "kept": 0,
-                            "total": 0,
-                            "reduction_pct": 0.0
+                    pruned_results.append(
+                        {
+                            "tool_id": result.tool_id,
+                            "data": [],
+                            "metadata": {
+                                "pruned": False,
+                                "kept": 0,
+                                "total": 0,
+                                "reduction_pct": 0.0,
+                            },
                         }
-                    })
+                    )
                     continue
 
                 # Calculate how many items to keep based on target ratio
@@ -272,21 +269,27 @@ class ContextManager:
                     items_to_keep.append(item)
                     current_tokens += item_tokens
 
-                pruned_results.append({
-                    "tool_id": result.tool_id,
-                    "data": items_to_keep,
-                    "metadata": {
-                        "pruned": True,
-                        "kept": len(items_to_keep),
-                        "total": len(items),
-                        "reduction_pct": round((1 - len(items_to_keep) / len(items)) * 100, 1) if len(items) > 0 else 0.0
+                pruned_results.append(
+                    {
+                        "tool_id": result.tool_id,
+                        "data": items_to_keep,
+                        "metadata": {
+                            "pruned": True,
+                            "kept": len(items_to_keep),
+                            "total": len(items),
+                            "reduction_pct": (
+                                round((1 - len(items_to_keep) / len(items)) * 100, 1)
+                                if len(items) > 0
+                                else 0.0
+                            ),
+                        },
                     }
-                })
+                )
             elif isinstance(result.data, str) and len(result.data) > 1000:
                 # For large text, extract key portions
                 text = result.data
                 # Simple heuristic: take first and last paragraphs + middle section
-                paragraphs = text.split('\n\n')
+                paragraphs = text.split("\n\n")
                 if len(paragraphs) > 5:
                     # Calculate total paragraphs to keep based on target ratio
                     keep_count = max(3, int(len(paragraphs) * self.target_compression_ratio))
@@ -297,45 +300,48 @@ class ContextManager:
                     # Strategy: keep first 2, last 2, and fill middle from center
                     if keep_count <= 4:
                         # If keep_count is small, just take first and last
-                        kept_paragraphs = paragraphs[:keep_count//2] + paragraphs[-(keep_count - keep_count//2):]
+                        kept_paragraphs = (
+                            paragraphs[: keep_count // 2]
+                            + paragraphs[-(keep_count - keep_count // 2) :]
+                        )
                     else:
                         # Keep first 2, last 2, and sample from middle
                         middle_count = keep_count - 4
                         middle_start = len(paragraphs) // 2 - middle_count // 2
                         middle_end = middle_start + middle_count
                         kept_paragraphs = (
-                            paragraphs[:2] +
-                            paragraphs[middle_start:middle_end] +
-                            paragraphs[-2:]
+                            paragraphs[:2] + paragraphs[middle_start:middle_end] + paragraphs[-2:]
                         )
-                    pruned_text = '\n\n'.join(kept_paragraphs)
+                    pruned_text = "\n\n".join(kept_paragraphs)
                 else:
                     pruned_text = text
 
-                pruned_results.append({
-                    "tool_id": result.tool_id,
-                    "data": pruned_text,
-                    "metadata": {
-                        "pruned": True,
-                        "original_length": len(text),
-                        "pruned_length": len(pruned_text)
+                pruned_results.append(
+                    {
+                        "tool_id": result.tool_id,
+                        "data": pruned_text,
+                        "metadata": {
+                            "pruned": True,
+                            "original_length": len(text),
+                            "pruned_length": len(pruned_text),
+                        },
                     }
-                })
+                )
                 current_tokens += self.estimate_tokens(pruned_text)
             else:
                 # Keep smaller items as-is
-                pruned_results.append({
-                    "tool_id": result.tool_id,
-                    "data": result.data
-                })
+                pruned_results.append({"tool_id": result.tool_id, "data": result.data})
                 current_tokens += result.token_estimate
 
         # Add transient context with query (important for relevance)
         if context.transient_context:
-            pruned_results.insert(0, {
-                "query": context.transient_context.get("query", ""),
-                "context": context.transient_context
-            })
+            pruned_results.insert(
+                0,
+                {
+                    "query": context.transient_context.get("query", ""),
+                    "context": context.transient_context,
+                },
+            )
 
         return json.dumps(pruned_results, indent=2)
 
@@ -374,7 +380,9 @@ class ContextManager:
         # The cost is: prompt_template tokens + output tokens
         # We don't count raw_tokens here because we have to send those to the main model anyway
         # The compression cost is the ADDITIONAL cost of using the student model
-        prompt_template = "Summarize the following text concisely while preserving all key information."
+        prompt_template = (
+            "Summarize the following text concisely while preserving all key information."
+        )
         prompt_overhead_tokens = self.estimate_tokens(prompt_template)
         estimated_response_tokens = expected_compressed_tokens
 
@@ -404,12 +412,12 @@ class ContextManager:
                     {
                         "role": "system",
                         "content": "Summarize the following text concisely while preserving all key information. "
-                                   "Focus on facts, key insights, and actionable items."
+                        "Focus on facts, key insights, and actionable items.",
                     },
-                    {"role": "user", "content": raw_text}
+                    {"role": "user", "content": raw_text},
                 ],
                 max_tokens=expected_compressed_tokens,
-                temperature=0.3  # Lower temperature for more consistent summaries
+                temperature=0.3,  # Lower temperature for more consistent summaries
             )
 
             summary = response.choices[0].message.content
@@ -464,11 +472,11 @@ class ContextManager:
                     messages=[
                         {
                             "role": "system",
-                            "content": "Provide a concise summary of the conversation history."
+                            "content": "Provide a concise summary of the conversation history.",
                         },
-                        {"role": "user", "content": old_text}
+                        {"role": "user", "content": old_text},
                     ],
-                    max_tokens=500
+                    max_tokens=500,
                 )
                 summary = summary_response.choices[0].message.content
             except Exception:

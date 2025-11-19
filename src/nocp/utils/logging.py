@@ -6,10 +6,9 @@ including the Context Watchdog for drift detection.
 """
 
 import json
-import structlog
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+
+import structlog
 
 from ..core.config import get_config
 from ..models.schemas import ContextMetrics
@@ -31,8 +30,11 @@ def setup_logging() -> None:
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer() if config.log_level == "DEBUG"
-            else structlog.dev.ConsoleRenderer(),
+            (
+                structlog.processors.JSONRenderer()
+                if config.log_level == "DEBUG"
+                else structlog.dev.ConsoleRenderer()
+            ),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
             getattr(structlog.stdlib, config.log_level.upper(), structlog.INFO)
@@ -64,7 +66,7 @@ class MetricsLogger:
     the efficiency delta across transactions.
     """
 
-    def __init__(self, log_file: Optional[Path] = None):
+    def __init__(self, log_file: Path | None = None):
         """
         Initialize metrics logger.
 
@@ -150,7 +152,7 @@ class MetricsLogger:
             net_savings=original_tokens - compressed_tokens - compression_cost,
         )
 
-    def check_drift(self, window_size: int = 100) -> Dict[str, float]:
+    def check_drift(self, window_size: int = 100) -> dict[str, float]:
         """
         Analyze recent transactions for context drift.
 
@@ -182,9 +184,7 @@ class MetricsLogger:
 
         # Calculate drift metrics
         efficiency_deltas = [t.get("efficiency_delta", 0) for t in transactions]
-        compression_ratios = [
-            t.get("input_compression_ratio", 1.0) for t in transactions
-        ]
+        compression_ratios = [t.get("input_compression_ratio", 1.0) for t in transactions]
 
         avg_efficiency_delta = sum(efficiency_deltas) / len(efficiency_deltas)
         avg_compression_ratio = sum(compression_ratios) / len(compression_ratios)
@@ -199,6 +199,7 @@ class MetricsLogger:
 
         # Get drift threshold from config
         from ..core.config import get_config
+
         config = get_config()
 
         drift_metrics = {
@@ -219,7 +220,7 @@ class MetricsLogger:
 
 
 # Global metrics logger instance
-_metrics_logger: Optional[MetricsLogger] = None
+_metrics_logger: MetricsLogger | None = None
 
 
 def get_metrics_logger() -> MetricsLogger:

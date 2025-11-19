@@ -5,20 +5,20 @@ Provides a consistent API for calling different LLM providers through LiteLLM,
 with support for structured output, error handling, and retries.
 """
 
-import time
-from typing import Any, Dict, List, Optional, Type, Union
 import json
+import time
+from typing import Any
 
 from pydantic import BaseModel
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from ..exceptions import LLMError
-from ..models.contracts import LLMRequest, LLMResponse, MessageRole
+from ..models.contracts import LLMResponse
 
 
 class LLMClient:
@@ -38,9 +38,9 @@ class LLMClient:
     def __init__(
         self,
         default_model: str = "gemini/gemini-2.0-flash-exp",
-        api_key: Optional[str] = None,
-        provider_api_keys: Optional[Dict[str, str]] = None,
-        fallback_models: Optional[List[str]] = None,
+        api_key: str | None = None,
+        provider_api_keys: dict[str, str] | None = None,
+        fallback_models: list[str] | None = None,
         max_retries: int = 3,
         timeout: int = 60,
     ):
@@ -64,6 +64,7 @@ class LLMClient:
         # Import litellm
         try:
             import litellm
+
             self.litellm = litellm
 
             # Configure provider-specific API keys
@@ -91,8 +92,7 @@ class LLMClient:
 
         except ImportError as e:
             raise ImportError(
-                "litellm is required for LLMClient. "
-                "Install with: pip install litellm"
+                "litellm is required for LLMClient. " "Install with: pip install litellm"
             ) from e
 
     @retry(
@@ -102,10 +102,10 @@ class LLMClient:
     )
     def complete(
         self,
-        messages: List[Dict[str, str]],
-        model: Optional[str] = None,
-        response_schema: Optional[Type[BaseModel]] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        response_schema: type[BaseModel] | None = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> LLMResponse:
@@ -158,10 +158,13 @@ class LLMClient:
                                 "name": "format_response",
                                 "description": "Format the response according to schema",
                                 "parameters": schema_json,
-                            }
+                            },
                         }
                     ]
-                    completion_kwargs["tool_choice"] = {"type": "function", "function": {"name": "format_response"}}
+                    completion_kwargs["tool_choice"] = {
+                        "type": "function",
+                        "function": {"name": "format_response"},
+                    }
                 else:
                     # For OpenAI and compatible models
                     completion_kwargs["response_format"] = {
@@ -169,7 +172,7 @@ class LLMClient:
                         "json_schema": {
                             "name": response_schema.__name__,
                             "schema": response_schema.model_json_schema(),
-                        }
+                        },
                     }
 
             # Merge additional kwargs
@@ -182,7 +185,10 @@ class LLMClient:
             provider = model.split("/")[0] if "/" in model else "unknown"
             if response_schema and provider == "gemini":
                 # Extract from function call
-                if hasattr(response.choices[0].message, 'tool_calls') and response.choices[0].message.tool_calls:
+                if (
+                    hasattr(response.choices[0].message, "tool_calls")
+                    and response.choices[0].message.tool_calls
+                ):
                     tool_call = response.choices[0].message.tool_calls[0]
                     content = tool_call.function.arguments
                     # Parse and validate against schema
@@ -203,7 +209,7 @@ class LLMClient:
                     except Exception as e:
                         raise LLMError(
                             f"Failed to parse response into {response_schema.__name__}: {e}",
-                            details={"raw_content": content}
+                            details={"raw_content": content},
                         ) from e
                 else:
                     parsed_content = content
@@ -250,15 +256,15 @@ class LLMClient:
                     "model": model,
                     "error_type": type(e).__name__,
                     "fallbacks_tried": self.fallback_models,
-                }
+                },
             ) from e
 
     def complete_with_tools(
         self,
-        messages: List[Dict[str, str]],
-        tools: List[Dict[str, Any]],
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]],
+        model: str | None = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
         **kwargs,
     ) -> LLMResponse:
@@ -295,7 +301,7 @@ class LLMClient:
             # Extract tool calls if present
             message = response.choices[0].message
             tool_calls = []
-            if hasattr(message, 'tool_calls') and message.tool_calls:
+            if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls = [
                     {
                         "id": tc.id,
@@ -319,10 +325,10 @@ class LLMClient:
         except Exception as e:
             raise LLMError(
                 f"LLM tool completion failed: {str(e)}",
-                details={"model": model, "error_type": type(e).__name__}
+                details={"model": model, "error_type": type(e).__name__},
             ) from e
 
-    def count_tokens(self, text: str, model: Optional[str] = None) -> int:
+    def count_tokens(self, text: str, model: str | None = None) -> int:
         """
         Count tokens for a given text using LiteLLM's token counter.
 
@@ -340,7 +346,7 @@ class LLMClient:
             # Fallback to rough estimate (1 token ≈ 4 chars)
             return len(text) // 4
 
-    def get_model_info(self, model: Optional[str] = None) -> Dict[str, Any]:
+    def get_model_info(self, model: str | None = None) -> dict[str, Any]:
         """
         Get information about a model (context window, pricing, etc.).
 

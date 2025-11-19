@@ -11,7 +11,6 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 class UVBootstrap:
@@ -21,17 +20,12 @@ class UVBootstrap:
         self.system = platform.system().lower()
         self.uv_bin = self._find_uv()
 
-    def _find_uv(self) -> Optional[Path]:
+    def _find_uv(self) -> Path | None:
         """Try to find uv in PATH or common locations."""
         # Check PATH first
         which_cmd = "where" if self.system == "windows" else "which"
         try:
-            result = subprocess.run(
-                [which_cmd, "uv"],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            result = subprocess.run([which_cmd, "uv"], capture_output=True, text=True, check=False)
             if result.returncode == 0:
                 uv_path = result.stdout.strip()
                 if uv_path:
@@ -75,17 +69,9 @@ class UVBootstrap:
         """Install uv on Unix-like systems (Linux, macOS)."""
         try:
             # Use the official installation script
-            install_cmd = [
-                "sh", "-c",
-                "curl -LsSf https://astral.sh/uv/install.sh | sh"
-            ]
+            install_cmd = ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"]
 
-            result = subprocess.run(
-                install_cmd,
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            result = subprocess.run(install_cmd, capture_output=True, text=True, check=False)
 
             if result.returncode == 0:
                 # Update PATH for current session
@@ -114,17 +100,9 @@ class UVBootstrap:
         """Install uv on Windows."""
         try:
             # Use PowerShell installation script
-            install_cmd = [
-                "powershell", "-c",
-                "irm https://astral.sh/uv/install.ps1 | iex"
-            ]
+            install_cmd = ["powershell", "-c", "irm https://astral.sh/uv/install.ps1 | iex"]
 
-            result = subprocess.run(
-                install_cmd,
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            result = subprocess.run(install_cmd, capture_output=True, text=True, check=False)
 
             if result.returncode == 0:
                 self.uv_bin = self._find_uv()
@@ -155,7 +133,7 @@ class UVBootstrap:
 
         print(f"\n💡 Note: You may need to add uv to your PATH by adding this to {rc_file}:")
         print('   export PATH="$HOME/.local/bin:$PATH"')
-        print("   Then restart your shell or run: source {}".format(rc_file))
+        print(f"   Then restart your shell or run: source {rc_file}")
 
     def get_uv_command(self) -> list[str]:
         """Get the command to run uv."""

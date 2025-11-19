@@ -6,9 +6,10 @@ ensuring type safety and enabling seamless integration with Gemini's
 structured output and function calling features.
 """
 
-from typing import Any, Dict, List, Optional, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ToolParameter(BaseModel):
@@ -18,7 +19,7 @@ class ToolParameter(BaseModel):
     type: str = Field(..., description="Parameter type (string, number, boolean, object, array)")
     description: str = Field(..., description="Parameter description for LLM")
     required: bool = Field(default=True, description="Whether parameter is required")
-    enum: Optional[List[str]] = Field(default=None, description="Allowed values if enumerated")
+    enum: list[str] | None = Field(default=None, description="Allowed values if enumerated")
 
 
 class ToolDefinition(BaseModel):
@@ -27,32 +28,32 @@ class ToolDefinition(BaseModel):
     Converts to Gemini Function Calling format.
     """
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "name": "search_database",
-            "description": "Search the product database for relevant items",
-            "parameters": [
-                {
-                    "name": "query",
-                    "type": "string",
-                    "description": "Search query string",
-                    "required": True
-                }
-            ]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "search_database",
+                "description": "Search the product database for relevant items",
+                "parameters": [
+                    {
+                        "name": "query",
+                        "type": "string",
+                        "description": "Search query string",
+                        "required": True,
+                    }
+                ],
+            }
         }
-    })
+    )
 
     name: str = Field(..., description="Unique tool identifier")
     description: str = Field(..., description="Clear description of tool purpose and usage")
-    parameters: List[ToolParameter] = Field(default_factory=list)
-    compression_threshold: Optional[int] = Field(
-        default=None,
-        description="Custom compression threshold for this tool's output"
+    parameters: list[ToolParameter] = Field(default_factory=list)
+    compression_threshold: int | None = Field(
+        default=None, description="Custom compression threshold for this tool's output"
     )
-    preferred_compression_method: Optional[Literal["semantic_pruning", "knowledge_distillation", "history_compaction", "none"]] = Field(
-        default=None,
-        description="Preferred compression method for this tool's output"
-    )
+    preferred_compression_method: (
+        Literal["semantic_pruning", "knowledge_distillation", "history_compaction", "none"] | None
+    ) = Field(default=None, description="Preferred compression method for this tool's output")
 
 
 class ToolExecutionResult(BaseModel):
@@ -60,11 +61,11 @@ class ToolExecutionResult(BaseModel):
 
     tool_name: str
     raw_output: str
-    raw_token_count: Optional[int] = None
+    raw_token_count: int | None = None
     execution_time_ms: float
     success: bool = True
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CompressionResult(BaseModel):
@@ -73,21 +74,19 @@ class CompressionResult(BaseModel):
     original_tokens: int
     compressed_tokens: int
     compression_ratio: float = Field(
-        ...,
-        description="Ratio of compressed to original (lower is better)"
+        ..., description="Ratio of compressed to original (lower is better)"
     )
-    compression_method: Literal["semantic_pruning", "knowledge_distillation", "history_compaction", "none"]
+    compression_method: Literal[
+        "semantic_pruning", "knowledge_distillation", "history_compaction", "none"
+    ]
     compression_cost_tokens: int = Field(
-        default=0,
-        description="Tokens consumed by the compression process itself"
+        default=0, description="Tokens consumed by the compression process itself"
     )
     compression_time_ms: float = Field(
-        default=0.0,
-        description="Actual time spent on compression in milliseconds"
+        default=0.0, description="Actual time spent on compression in milliseconds"
     )
     net_savings: int = Field(
-        ...,
-        description="Actual token savings after subtracting compression cost"
+        ..., description="Actual token savings after subtracting compression cost"
     )
 
 
@@ -113,8 +112,8 @@ class ContextMetrics(BaseModel):
     llm_inference_latency_ms: float
 
     # Metadata
-    tools_used: List[str] = Field(default_factory=list)
-    compression_operations: List[CompressionResult] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
+    compression_operations: list[CompressionResult] = Field(default_factory=list)
 
 
 class TransactionLog(BaseModel):
@@ -127,19 +126,23 @@ class TransactionLog(BaseModel):
 
     # Request identification
     transaction_id: str = Field(..., description="Unique transaction identifier")
-    session_id: Optional[str] = Field(None, description="Session identifier")
+    session_id: str | None = Field(None, description="Session identifier")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
     # Request details
     user_query: str = Field(..., description="Original user query")
-    tools_invoked: List[str] = Field(default_factory=list, description="Tools called during execution")
+    tools_invoked: list[str] = Field(
+        default_factory=list, description="Tools called during execution"
+    )
 
     # Input compression metrics
     raw_input_tokens: int = Field(..., description="Total tokens before compression")
     optimized_input_tokens: int = Field(..., description="Tokens after compression")
     input_compression_ratio: float = Field(..., description="Compression ratio (optimized/raw)")
-    input_compression_method: Optional[str] = Field(None, description="Compression method used")
-    compression_justified: bool = Field(True, description="Whether compression passed cost-benefit check")
+    input_compression_method: str | None = Field(None, description="Compression method used")
+    compression_justified: bool = Field(
+        True, description="Whether compression passed cost-benefit check"
+    )
 
     # LLM metrics
     model_used: str = Field(..., description="LLM model identifier")
@@ -151,7 +154,9 @@ class TransactionLog(BaseModel):
     raw_output_tokens: int = Field(..., description="Tokens in raw response")
     optimized_output_tokens: int = Field(..., description="Tokens after serialization")
     output_compression_ratio: float = Field(..., description="Output compression ratio")
-    serialization_format: Literal["toon", "compact_json", "json"] = Field(..., description="Final output format")
+    serialization_format: Literal["toon", "compact_json", "json"] = Field(
+        ..., description="Final output format"
+    )
 
     # Performance metrics
     total_latency_ms: float = Field(..., description="End-to-end latency")
@@ -159,20 +164,24 @@ class TransactionLog(BaseModel):
     serialization_latency_ms: float = Field(0.0, description="Time spent on serialization")
 
     # Cost metrics
-    estimated_cost_usd: Optional[float] = Field(None, description="Estimated API cost")
-    cost_savings_usd: Optional[float] = Field(None, description="Cost savings from compression")
+    estimated_cost_usd: float | None = Field(None, description="Estimated API cost")
+    cost_savings_usd: float | None = Field(None, description="Cost savings from compression")
 
     # Efficiency metrics
-    efficiency_delta: int = Field(..., description="Net token savings (raw_input - optimized_input)")
+    efficiency_delta: int = Field(
+        ..., description="Net token savings (raw_input - optimized_input)"
+    )
     total_token_savings: int = Field(..., description="Total tokens saved (input + output)")
     compression_overhead_tokens: int = Field(0, description="Tokens used by compression itself")
 
     # Quality metrics
-    compression_success: bool = Field(True, description="Whether compression completed successfully")
-    error_message: Optional[str] = Field(None, description="Error message if compression failed")
+    compression_success: bool = Field(
+        True, description="Whether compression completed successfully"
+    )
+    error_message: str | None = Field(None, description="Error message if compression failed")
 
     # Additional metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     def calculate_savings_percentage(self) -> float:
         """Calculate total token savings as percentage."""
@@ -188,28 +197,27 @@ class AgentRequest(BaseModel):
     Represents the user's query and available context.
     """
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "query": "Find all products matching the search term and summarize pricing",
-            "session_id": "user-session-123",
-            "available_tools": ["search_database", "analyze_pricing"]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "query": "Find all products matching the search term and summarize pricing",
+                "session_id": "user-session-123",
+                "available_tools": ["search_database", "analyze_pricing"],
+            }
         }
-    })
+    )
 
     query: str = Field(..., description="User's natural language query")
-    session_id: Optional[str] = Field(default=None, description="Session identifier for context tracking")
-    available_tools: List[str] = Field(
-        default_factory=list,
-        description="Names of tools available for this request"
+    session_id: str | None = Field(
+        default=None, description="Session identifier for context tracking"
     )
-    context_override: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Optional context to inject (for testing/overrides)"
+    available_tools: list[str] = Field(
+        default_factory=list, description="Names of tools available for this request"
     )
-    max_tokens: Optional[int] = Field(
-        default=None,
-        description="Override maximum output tokens"
+    context_override: dict[str, Any] | None = Field(
+        default=None, description="Optional context to inject (for testing/overrides)"
     )
+    max_tokens: int | None = Field(default=None, description="Override maximum output tokens")
 
 
 class AgentResponse(BaseModel):
@@ -218,37 +226,33 @@ class AgentResponse(BaseModel):
     This is the structured output from the LLM that gets serialized to TOON.
     """
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "answer": "Found 5 products matching your criteria",
-            "tool_results_summary": ["Searched database: 5 items found", "Analyzed pricing: Average $49.99"],
-            "confidence": 0.95,
-            "follow_up_actions": ["Review pricing details", "Check inventory"]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "answer": "Found 5 products matching your criteria",
+                "tool_results_summary": [
+                    "Searched database: 5 items found",
+                    "Analyzed pricing: Average $49.99",
+                ],
+                "confidence": 0.95,
+                "follow_up_actions": ["Review pricing details", "Check inventory"],
+            }
         }
-    })
+    )
 
     answer: str = Field(..., description="The primary answer to the user's query")
-    tool_results_summary: List[str] = Field(
-        default_factory=list,
-        description="Distilled summary of tool execution results"
+    tool_results_summary: list[str] = Field(
+        default_factory=list, description="Distilled summary of tool execution results"
     )
     confidence: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Agent's confidence in the response"
+        default=1.0, ge=0.0, le=1.0, description="Agent's confidence in the response"
     )
-    follow_up_actions: List[str] = Field(
-        default_factory=list,
-        description="Suggested next steps or actions"
+    follow_up_actions: list[str] = Field(
+        default_factory=list, description="Suggested next steps or actions"
     )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional structured data"
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional structured data")
 
     # Internal metrics (not serialized to user)
-    metrics: Optional[ContextMetrics] = Field(
-        default=None,
-        description="Performance and cost metrics for monitoring"
+    metrics: ContextMetrics | None = Field(
+        default=None, description="Performance and cost metrics for monitoring"
     )

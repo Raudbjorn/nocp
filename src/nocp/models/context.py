@@ -5,8 +5,9 @@ Implements the separation between short-term (transient) and long-term (persiste
 context as outlined in the architecture.
 """
 
-from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -16,8 +17,8 @@ class ConversationMessage(BaseModel):
     role: Literal["user", "assistant", "system", "tool"]
     content: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    token_count: Optional[int] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    token_count: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TransientContext(BaseModel):
@@ -31,23 +32,19 @@ class TransientContext(BaseModel):
     """
 
     current_query: str
-    available_tool_names: List[str] = Field(default_factory=list)
-    conversation_history: List[ConversationMessage] = Field(default_factory=list)
+    available_tool_names: list[str] = Field(default_factory=list)
+    conversation_history: list[ConversationMessage] = Field(default_factory=list)
     turn_number: int = Field(default=1)
 
     # Token tracking
-    estimated_tokens: Optional[int] = None
+    estimated_tokens: int | None = None
     max_history_tokens: int = Field(
-        default=50000,
-        description="Maximum tokens to allocate for conversation history"
+        default=50000, description="Maximum tokens to allocate for conversation history"
     )
 
     def get_total_history_tokens(self) -> int:
         """Calculate total tokens in conversation history."""
-        return sum(
-            msg.token_count or 0
-            for msg in self.conversation_history
-        )
+        return sum(msg.token_count or 0 for msg in self.conversation_history)
 
     def requires_compaction(self) -> bool:
         """Check if history compaction is needed."""
@@ -72,25 +69,22 @@ class PersistentContext(BaseModel):
     # System configuration
     system_instructions: str = Field(
         default="You are a helpful AI assistant powered by an efficient token optimization layer.",
-        description="Core system instructions for the agent"
+        description="Core system instructions for the agent",
     )
 
     # Long-term memory with roll-up summarization
-    conversation_summary: Optional[str] = Field(
-        default=None,
-        description="Rolled-up summary of past conversations"
+    conversation_summary: str | None = Field(
+        default=None, description="Rolled-up summary of past conversations"
     )
     summary_generations: int = Field(
         default=0,
-        description="Number of times the summary has been regenerated (tracks compression depth)"
+        description="Number of times the summary has been regenerated (tracks compression depth)",
     )
     last_compaction_turn: int = Field(
-        default=0,
-        description="Turn number when last compaction occurred"
+        default=0, description="Turn number when last compaction occurred"
     )
-    user_preferences: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Learned user preferences and context"
+    user_preferences: dict[str, Any] = Field(
+        default_factory=dict, description="Learned user preferences and context"
     )
 
     # State tracking

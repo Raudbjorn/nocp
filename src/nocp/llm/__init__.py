@@ -4,8 +4,8 @@ LLM module - Unified interface to language models via LiteLLM.
 
 from .client import LLMClient
 from .router import (
-    ModelRouter,
     ModelConfig,
+    ModelRouter,
     ModelTier,
     RequestComplexity,
 )

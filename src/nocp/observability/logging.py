@@ -9,13 +9,13 @@ Provides:
 """
 
 import json
-from pathlib import Path
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-from collections import deque
 import statistics
+from collections import deque
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-from ..models.schemas import TransactionLog, ContextMetrics
+from ..models.schemas import TransactionLog
 from ..utils.logging import get_logger
 
 
@@ -49,11 +49,11 @@ class TransactionLogger:
         """
         try:
             # Serialize to JSON
-            transaction_dict = transaction.model_dump(mode='json')
+            transaction_dict = transaction.model_dump(mode="json")
 
             # Append to JSONL file
-            with open(self.log_file, 'a') as f:
-                f.write(json.dumps(transaction_dict, default=str) + '\n')
+            with open(self.log_file, "a") as f:
+                f.write(json.dumps(transaction_dict, default=str) + "\n")
 
             self.logger.info(
                 "transaction_logged",
@@ -62,7 +62,7 @@ class TransactionLogger:
                 total_savings=transaction.total_token_savings,
             )
 
-        except (IOError, OSError, TypeError) as e:
+        except (OSError, TypeError) as e:
             self.logger.error(
                 "failed_to_log_transaction",
                 transaction_id=transaction.transaction_id,
@@ -72,8 +72,8 @@ class TransactionLogger:
     def load_recent_transactions(
         self,
         limit: int = 100,
-        since: Optional[datetime] = None,
-    ) -> List[TransactionLog]:
+        since: datetime | None = None,
+    ) -> list[TransactionLog]:
         """
         Load recent transactions from log file.
 
@@ -87,10 +87,10 @@ class TransactionLogger:
         if not self.log_file.exists():
             return []
 
-        transactions = []
+        transactions: list[TransactionLog] = []
 
         try:
-            with open(self.log_file, 'r') as f:
+            with open(self.log_file) as f:
                 # Read from end of file (most recent)
                 lines = deque(f, maxlen=limit * 2)  # Read more in case of filtering
 
@@ -103,7 +103,7 @@ class TransactionLogger:
 
                     # Apply time filter if specified
                     if since:
-                        tx_time = datetime.fromisoformat(transaction_dict['timestamp'])
+                        tx_time = datetime.fromisoformat(transaction_dict["timestamp"])
                         if tx_time < since:
                             continue
 
@@ -116,14 +116,14 @@ class TransactionLogger:
 
             return transactions
 
-        except (IOError, OSError, json.JSONDecodeError, ValueError) as e:
+        except (OSError, json.JSONDecodeError, ValueError) as e:
             self.logger.error("failed_to_load_transactions", error=str(e))
             return []
 
     def get_summary_stats(
         self,
         window_minutes: int = 60,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get summary statistics for recent transactions.
 
@@ -173,8 +173,16 @@ class TransactionLogger:
             "latency_ms": {
                 "mean": statistics.mean(latencies) if latencies else 0,
                 "p50": statistics.median(latencies) if latencies else 0,
-                "p95": statistics.quantiles(latencies, n=20)[18] if len(latencies) > 20 else max(latencies, default=0),
-                "p99": statistics.quantiles(latencies, n=100)[98] if len(latencies) > 100 else max(latencies, default=0),
+                "p95": (
+                    statistics.quantiles(latencies, n=20)[18]
+                    if len(latencies) > 20
+                    else max(latencies, default=0)
+                ),
+                "p99": (
+                    statistics.quantiles(latencies, n=100)[98]
+                    if len(latencies) > 100
+                    else max(latencies, default=0)
+                ),
             },
         }
 
@@ -225,7 +233,7 @@ class MetricsCollector:
         if transaction.cost_savings_usd:
             self.total_cost_saved_usd += transaction.cost_savings_usd
 
-    def get_current_metrics(self) -> Dict[str, Any]:
+    def get_current_metrics(self) -> dict[str, Any]:
         """
         Get current metrics from recent transactions.
 
@@ -241,18 +249,10 @@ class MetricsCollector:
         transactions = list(self.recent_transactions)
 
         # Calculate averages
-        avg_input_compression = statistics.mean(
-            tx.input_compression_ratio for tx in transactions
-        )
-        avg_output_compression = statistics.mean(
-            tx.output_compression_ratio for tx in transactions
-        )
-        avg_efficiency_delta = statistics.mean(
-            tx.efficiency_delta for tx in transactions
-        )
-        avg_latency = statistics.mean(
-            tx.total_latency_ms for tx in transactions
-        )
+        avg_input_compression = statistics.mean(tx.input_compression_ratio for tx in transactions)
+        avg_output_compression = statistics.mean(tx.output_compression_ratio for tx in transactions)
+        avg_efficiency_delta = statistics.mean(tx.efficiency_delta for tx in transactions)
+        avg_latency = statistics.mean(tx.total_latency_ms for tx in transactions)
 
         # Success rate
         successful = sum(1 for tx in transactions if tx.compression_success)
@@ -272,7 +272,8 @@ class MetricsCollector:
                 "total_transactions": self.total_transactions,
                 "total_input_tokens_saved": self.total_input_tokens_saved,
                 "total_output_tokens_saved": self.total_output_tokens_saved,
-                "total_tokens_saved": self.total_input_tokens_saved + self.total_output_tokens_saved,
+                "total_tokens_saved": self.total_input_tokens_saved
+                + self.total_output_tokens_saved,
                 "total_cost_saved_usd": self.total_cost_saved_usd,
             },
         }
@@ -288,12 +289,12 @@ class MetricsCollector:
             metrics = self.get_current_metrics()
             metrics["export_timestamp"] = datetime.utcnow().isoformat()
 
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(metrics, f, indent=2)
 
             self.logger.info("metrics_exported", output_file=output_file)
 
-        except (IOError, OSError, TypeError) as e:
+        except (OSError, TypeError) as e:
             self.logger.error("failed_to_export_metrics", error=str(e))
 
 
@@ -329,9 +330,9 @@ class DriftDetector:
         self.logger = get_logger(__name__)
 
         # Alert state
-        self.alerts: List[Dict[str, Any]] = []
+        self.alerts: list[dict[str, Any]] = []
 
-    def analyze_transaction(self, transaction: TransactionLog) -> Optional[Dict[str, Any]]:
+    def analyze_transaction(self, transaction: TransactionLog) -> dict[str, Any] | None:
         """
         Analyze a transaction for drift detection.
 
@@ -349,8 +350,8 @@ class DriftDetector:
 
         # Split into recent and previous windows
         all_transactions = list(self.recent_transactions)
-        recent_window = all_transactions[-self.comparison_window:]
-        previous_window = all_transactions[-2*self.comparison_window:-self.comparison_window]
+        recent_window = all_transactions[-self.comparison_window :]
+        previous_window = all_transactions[-2 * self.comparison_window : -self.comparison_window]
 
         # Calculate average efficiency delta for each window
         recent_avg_delta = statistics.mean(tx.efficiency_delta for tx in recent_window)
@@ -374,10 +375,7 @@ class DriftDetector:
 
             self.alerts.append(alert)
 
-            self.logger.warning(
-                "drift_detected",
-                **alert
-            )
+            self.logger.warning("drift_detected", **alert)
 
             return alert
 
@@ -387,7 +385,8 @@ class DriftDetector:
 
         latency_increase_pct = (
             (recent_avg_latency - previous_avg_latency) / previous_avg_latency * 100
-            if previous_avg_latency > 0 else 0
+            if previous_avg_latency > 0
+            else 0
         )
 
         if latency_increase_pct > 50:  # 50% increase
@@ -403,16 +402,13 @@ class DriftDetector:
 
             self.alerts.append(alert)
 
-            self.logger.warning(
-                "latency_increase_detected",
-                **alert
-            )
+            self.logger.warning("latency_increase_detected", **alert)
 
             return alert
 
         return None
 
-    def get_recent_alerts(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_alerts(self, limit: int = 10) -> list[dict[str, Any]]:
         """
         Get recent alerts.
 
@@ -487,7 +483,7 @@ class ObservabilityHub:
         if alert:
             self.logger.warning("observability_alert", **alert)
 
-    def get_dashboard_data(self) -> Dict[str, Any]:
+    def get_dashboard_data(self) -> dict[str, Any]:
         """
         Get comprehensive dashboard data.
 
@@ -501,7 +497,7 @@ class ObservabilityHub:
             "recent_alerts": self.drift_detector.get_recent_alerts(limit=5),
         }
 
-    def export_report(self, output_file: Optional[str] = None) -> str:
+    def export_report(self, output_file: str | None = None) -> str:
         """
         Export comprehensive observability report.
 
@@ -517,7 +513,7 @@ class ObservabilityHub:
 
         dashboard_data = self.get_dashboard_data()
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(dashboard_data, f, indent=2)
 
         self.logger.info("observability_report_exported", output_file=output_file)
@@ -526,13 +522,13 @@ class ObservabilityHub:
 
 
 # Global instance
-_observability_hub: Optional[ObservabilityHub] = None
+_observability_hub: ObservabilityHub | None = None
 
 
 def get_observability_hub(
-    log_dir: Optional[str] = None,
-    metrics_window: Optional[int] = None,
-    drift_threshold: Optional[float] = None,
+    log_dir: str | None = None,
+    metrics_window: int | None = None,
+    drift_threshold: float | None = None,
 ) -> ObservabilityHub:
     """
     Get or create the global observability hub instance.

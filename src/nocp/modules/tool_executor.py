@@ -6,13 +6,13 @@ RAG pipelines, etc. Returns raw results that may be verbose and require
 compression.
 """
 
-from typing import Any, Callable, Dict, List, Optional
 import time
 import traceback
-from pydantic import BaseModel
+from collections.abc import Callable
+from typing import Any
 
-from ..models.schemas import ToolDefinition, ToolExecutionResult
 from ..core.config import get_config
+from ..models.schemas import ToolDefinition, ToolExecutionResult
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
 
@@ -35,7 +35,7 @@ class ToolExecutor:
         self.token_counter = TokenCounter()
 
         # Registry of available tools: {tool_name: (definition, callable)}
-        self._tools: Dict[str, tuple[ToolDefinition, Callable]] = {}
+        self._tools: dict[str, tuple[ToolDefinition, Callable]] = {}
 
     def register_tool(
         self,
@@ -68,7 +68,7 @@ class ToolExecutor:
             custom_threshold=definition.compression_threshold,
         )
 
-    def get_tool_definitions(self) -> List[ToolDefinition]:
+    def get_tool_definitions(self) -> list[ToolDefinition]:
         """
         Get all registered tool definitions.
 
@@ -77,7 +77,7 @@ class ToolExecutor:
         """
         return [definition for definition, _ in self._tools.values()]
 
-    def get_tool_definition(self, tool_name: str) -> Optional[ToolDefinition]:
+    def get_tool_definition(self, tool_name: str) -> ToolDefinition | None:
         """
         Get definition for a specific tool.
 
@@ -93,7 +93,7 @@ class ToolExecutor:
     def execute_tool(
         self,
         tool_name: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
     ) -> ToolExecutionResult:
         """
         Execute a registered tool with given parameters.
@@ -176,8 +176,8 @@ class ToolExecutor:
 
     def execute_tools_batch(
         self,
-        tool_calls: List[Dict[str, Any]],
-    ) -> List[ToolExecutionResult]:
+        tool_calls: list[dict[str, Any]],
+    ) -> list[ToolExecutionResult]:
         """
         Execute multiple tools in sequence.
 
@@ -205,8 +205,8 @@ class ToolExecutor:
     def validate_tool_parameters(
         self,
         tool_name: str,
-        parameters: Dict[str, Any],
-    ) -> tuple[bool, Optional[str]]:
+        parameters: dict[str, Any],
+    ) -> tuple[bool, str | None]:
         """
         Validate parameters against tool definition.
 
@@ -244,12 +244,12 @@ class ToolExecutor:
 
                 if expected_type in type_map:
                     expected_python_type = type_map[expected_type]
-                    if not isinstance(value, expected_python_type):
+                    if not isinstance(value, expected_python_type):  # type: ignore[arg-type]
                         return False, f"Parameter '{param.name}' has wrong type"
 
         return True, None
 
-    def get_tool_schemas_for_gemini(self) -> List[Dict[str, Any]]:
+    def get_tool_schemas_for_gemini(self) -> list[dict[str, Any]]:
         """
         Convert tool definitions to Gemini Function Calling format.
 
@@ -273,12 +273,12 @@ class ToolExecutor:
                 }
 
                 if param.enum:
-                    param_schema["enum"] = param.enum
+                    param_schema["enum"] = param.enum  # type: ignore[assignment]
 
-                parameters_schema["properties"][param.name] = param_schema
+                parameters_schema["properties"][param.name] = param_schema  # type: ignore[index]
 
                 if param.required:
-                    parameters_schema["required"].append(param.name)
+                    parameters_schema["required"].append(param.name)  # type: ignore[attr-defined]
 
             # Build function schema
             function_schema = {

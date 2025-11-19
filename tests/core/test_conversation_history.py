@@ -8,22 +8,22 @@ Tests cover:
 - History compaction triggers
 """
 
-import pytest
 import os
-from datetime import datetime
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
+from nocp.core.persistence import PersistenceManager
 from nocp.models.context import (
-    TransientContext,
-    PersistentContext,
-    ConversationMessage,
     ContextSnapshot,
+    ConversationMessage,
+    PersistentContext,
+    TransientContext,
 )
 from nocp.modules.context_manager import ContextManager
-from nocp.core.persistence import PersistenceManager
 
 
 class TestConversationHistoryCompaction:
@@ -35,7 +35,7 @@ class TestConversationHistoryCompaction:
         os.environ["GEMINI_API_KEY"] = "test_key_for_testing"
 
         # Mock the student model to avoid actual API calls
-        with patch('nocp.modules.context_manager.genai.GenerativeModel') as mock_model:
+        with patch("nocp.modules.context_manager.genai.GenerativeModel") as mock_model:
             mock_instance = Mock()
             mock_model.return_value = mock_instance
             self.context_manager = ContextManager()
@@ -45,6 +45,7 @@ class TestConversationHistoryCompaction:
         """Clean up after tests."""
         # Reset config
         from nocp.core.config import reset_config
+
         reset_config()
 
     def test_no_compaction_needed_below_threshold(self):
@@ -122,7 +123,8 @@ class TestConversationHistoryCompaction:
             messages.append(
                 ConversationMessage(
                     role="user" if i % 2 == 0 else "assistant",
-                    content=f"Additional discussion {i}: Details about implementation and architecture." * 50,
+                    content=f"Additional discussion {i}: Details about implementation and architecture."
+                    * 50,
                     token_count=400,
                 )
             )
@@ -150,7 +152,10 @@ class TestConversationHistoryCompaction:
         assert persistent_ctx.last_compaction_turn == 20
 
         # Summary should be updated (not same as original)
-        assert persistent_ctx.conversation_summary != "User discussed project requirements and decided to use Python."
+        assert (
+            persistent_ctx.conversation_summary
+            != "User discussed project requirements and decided to use Python."
+        )
 
     def test_compression_metrics_updated(self):
         """Test that compression metrics are tracked in persistent context."""
@@ -350,7 +355,7 @@ class TestMultiTurnConversationIntegration:
         self.persistence_manager = PersistenceManager(storage_dir=self.temp_dir)
 
         # Mock the student model to avoid actual API calls
-        with patch('nocp.modules.context_manager.genai.GenerativeModel') as mock_model:
+        with patch("nocp.modules.context_manager.genai.GenerativeModel") as mock_model:
             mock_instance = Mock()
             mock_model.return_value = mock_instance
             self.context_manager = ContextManager()
@@ -361,6 +366,7 @@ class TestMultiTurnConversationIntegration:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         # Reset config
         from nocp.core.config import reset_config
+
         reset_config()
 
     def test_multi_turn_conversation_with_compaction(self):
@@ -375,7 +381,8 @@ class TestMultiTurnConversationIntegration:
             messages.append(
                 ConversationMessage(
                     role="user",
-                    content=f"Turn {turn}: User asks a detailed question about the system architecture and implementation details." * 30,
+                    content=f"Turn {turn}: User asks a detailed question about the system architecture and implementation details."
+                    * 30,
                     token_count=300,
                 )
             )
@@ -384,7 +391,8 @@ class TestMultiTurnConversationIntegration:
             messages.append(
                 ConversationMessage(
                     role="assistant",
-                    content=f"Turn {turn}: Assistant provides comprehensive answer with code examples and explanations." * 40,
+                    content=f"Turn {turn}: Assistant provides comprehensive answer with code examples and explanations."
+                    * 40,
                     token_count=400,
                 )
             )
