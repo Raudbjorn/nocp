@@ -454,7 +454,9 @@ run_integration_tests() {
     print_section "Running Integration Tests"
 
     print_info "Running integration tests..."
-    if ! run_python_cmd "pytest tests/integration/ -v"; then
+    if run_python_cmd "pytest tests/integration/ -v"; then
+        print_success "Integration tests passed"
+    else
         # pytest exits with 5 if no tests are found
         if [ $? -eq 5 ]; then
             print_warning "No integration tests found"
@@ -463,7 +465,6 @@ run_integration_tests() {
             exit 1
         fi
     fi
-    print_success "Integration tests passed"
 }
 
 run_e2e_tests() {
