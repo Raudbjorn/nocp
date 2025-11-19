@@ -599,7 +599,7 @@ clean_all() {
     rm -rf build dist *.egg-info
     rm -rf .pytest_cache .coverage htmlcov
     rm -rf .mypy_cache .ruff_cache
-    find . -type d -name "__pycache__" -delete 2>/dev/null || true
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete 2>/dev/null || true
     print_success "Python artifacts cleaned"
 
