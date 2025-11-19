@@ -470,16 +470,17 @@ run_e2e_tests() {
     print_section "Running End-to-End Tests"
 
     print_info "Running e2e tests..."
-    if ! run_python_cmd "pytest tests/e2e/ -v"; then
-        # pytest exits with 5 if no tests are found
-        if [ $? -eq 5 ]; then
-            print_warning "No e2e tests found"
-        else
-            print_error "End-to-end tests failed"
-            exit 1
-        fi
+    run_python_cmd "pytest tests/e2e/ -v"
+    exit_code=$?
+    # pytest exits with 5 if no tests are found
+    if [ $exit_code -eq 5 ]; then
+        print_warning "No e2e tests found"
+    elif [ $exit_code -ne 0 ]; then
+        print_error "End-to-end tests failed"
+        exit 1
+    else
+        print_success "E2E tests passed"
     fi
-    print_success "E2E tests passed"
 }
 
 # Linting and formatting
