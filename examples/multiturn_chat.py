@@ -108,7 +108,7 @@ class ChatBot:
         async def calculate(expression: str) -> dict:
             """Perform a calculation."""
             try:
-                # Use ast.literal_eval for safer evaluation of simple expressions
+                # In production, use safer evaluation like ast.literal_eval
                 result = ast.literal_eval(expression)
                 return {"expression": expression, "result": result}
             except (ValueError, SyntaxError) as e:
