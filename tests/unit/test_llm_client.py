@@ -29,7 +29,7 @@ class TestLLMClient:
 
     def test_client_initialization(self):
         """Test that client initializes correctly."""
-        with patch("nocp.llm.client.litellm"):
+        with patch("nocp.llm.client.litellm") as mock_litellm:
             client = LLMClient(
                 default_model="gemini/gemini-2.0-flash-exp",
                 max_retries=3,

@@ -425,6 +425,7 @@ class TestChromaDBCache:
     def chromadb_available(self):
         """Check if ChromaDB is available."""
         try:
+
             return True
         except Exception:
             pytest.skip("ChromaDB not installed")

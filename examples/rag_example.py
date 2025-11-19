@@ -12,36 +12,34 @@ Features:
 """
 
 import asyncio
-import hashlib
 import os
 import sys
 from datetime import datetime
-from typing import List
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-
-from pydantic import BaseModel, Field
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from nocp.core.act import ToolExecutor
-from nocp.core.assess import ContextManager
 from nocp.core.articulate import OutputSerializer
-from nocp.core.cache import LRUCache
+from nocp.core.assess import ContextManager
 from nocp.core.async_modules import ConcurrentToolExecutor
+from nocp.core.cache import LRUCache
 from nocp.models.contracts import (
-    ToolRequest,
-    ToolType,
     ContextData,
+    SerializationRequest,
+    ToolRequest,
     ToolResult,
-    SerializationRequest
+    ToolType,
 )
-
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # Data Models
 # ============================================================================
 
+
 class DocumentChunk(BaseModel):
     """A chunk of text from a document."""
+
     id: str
     text: str
     metadata: dict = Field(default_factory=dict)
@@ -50,6 +48,7 @@ class DocumentChunk(BaseModel):
 
 class RAGQuery(BaseModel):
     """RAG query request."""
+
     query: str
     top_k: int = 5
     min_similarity: float = 0.5
@@ -57,8 +56,9 @@ class RAGQuery(BaseModel):
 
 class RAGResponse(BaseModel):
     """RAG response with sources."""
+
     answer: str
-    sources: List[DocumentChunk]
+    sources: list[DocumentChunk]
     total_tokens: int
     optimized_tokens: int
 
@@ -66,6 +66,7 @@ class RAGResponse(BaseModel):
 # ============================================================================
 # Simulated Vector Database
 # ============================================================================
+
 
 class VectorDB:
     """Simulated vector database for demonstration."""
@@ -76,46 +77,46 @@ class VectorDB:
             DocumentChunk(
                 id="doc_1",
                 text="NOCP is a high-efficiency proxy agent designed to minimize token usage in LLM applications.",
-                metadata={"source": "docs/overview.md", "page": 1}
+                metadata={"source": "docs/overview.md", "page": 1},
             ),
             DocumentChunk(
                 id="doc_2",
                 text="The Act-Assess-Articulate pipeline optimizes tokens at every stage of execution.",
-                metadata={"source": "docs/architecture.md", "page": 3}
+                metadata={"source": "docs/architecture.md", "page": 3},
             ),
             DocumentChunk(
                 id="doc_3",
                 text="Caching can improve performance by 10-100x for repeated queries.",
-                metadata={"source": "docs/performance.md", "page": 5}
+                metadata={"source": "docs/performance.md", "page": 5},
             ),
             DocumentChunk(
                 id="doc_4",
                 text="Context compression reduces token usage by 50-70% using semantic pruning.",
-                metadata={"source": "docs/optimization.md", "page": 2}
+                metadata={"source": "docs/optimization.md", "page": 2},
             ),
             DocumentChunk(
                 id="doc_5",
                 text="NOCP supports both synchronous and asynchronous execution modes.",
-                metadata={"source": "docs/api.md", "page": 7}
+                metadata={"source": "docs/api.md", "page": 7},
             ),
             DocumentChunk(
                 id="doc_6",
                 text="The TOON serialization format can save 30-60% on output tokens for tabular data.",
-                metadata={"source": "docs/serialization.md", "page": 4}
+                metadata={"source": "docs/serialization.md", "page": 4},
             ),
             DocumentChunk(
                 id="doc_7",
                 text="ChromaDB caching enables distributed caching with vector storage capabilities.",
-                metadata={"source": "docs/deployment.md", "page": 6}
+                metadata={"source": "docs/deployment.md", "page": 6},
             ),
             DocumentChunk(
                 id="doc_8",
                 text="Concurrent tool execution allows processing multiple requests in parallel.",
-                metadata={"source": "docs/concurrency.md", "page": 8}
+                metadata={"source": "docs/concurrency.md", "page": 8},
             ),
         ]
 
-    async def search(self, query: str, top_k: int = 5) -> List[DocumentChunk]:
+    async def search(self, query: str, top_k: int = 5) -> list[DocumentChunk]:
         """
         Simulate vector similarity search.
 
@@ -154,6 +155,7 @@ class VectorDB:
 # RAG System
 # ============================================================================
 
+
 class RAGSystem:
     """Production-ready RAG system with NOCP optimizations."""
 
@@ -172,7 +174,7 @@ class RAGSystem:
         self.context_manager = ContextManager(
             compression_threshold=1000,  # Compress if >1000 tokens
             target_compression_ratio=0.40,  # Target 60% reduction
-            enable_litellm=False  # Disable for example
+            enable_litellm=False,  # Disable for example
         )
 
         # Setup output serializer
@@ -185,13 +187,13 @@ class RAGSystem:
         """Register RAG tools."""
 
         @self.executor.register_async_tool("vector_search")
-        async def vector_search(query: str, top_k: int = 5) -> List[dict]:
+        async def vector_search(query: str, top_k: int = 5) -> list[dict]:
             """Search vector database for relevant documents."""
             chunks = await self.vector_db.search(query, top_k)
             return [chunk.model_dump() for chunk in chunks]
 
         @self.executor.register_async_tool("rerank")
-        async def rerank(query: str, chunks: List[dict], top_k: int = 3) -> List[dict]:
+        async def rerank(query: str, chunks: list[dict], top_k: int = 3) -> list[dict]:
             """
             Rerank chunks using a more sophisticated model.
 
@@ -205,12 +207,12 @@ class RAGSystem:
             query_words = set(query.lower().split())
 
             for chunk in chunks:
-                text_words = set(chunk['text'].lower().split())
+                text_words = set(chunk["text"].lower().split())
                 boost = len(query_words & text_words) * 0.1
-                chunk['similarity_score'] += boost
+                chunk["similarity_score"] += boost
 
             # Re-sort and take top-k
-            chunks.sort(key=lambda x: x['similarity_score'], reverse=True)
+            chunks.sort(key=lambda x: x["similarity_score"], reverse=True)
             return chunks[:top_k]
 
         @self.executor.register_async_tool("generate_answer")
@@ -240,7 +242,7 @@ class RAGSystem:
         """
         print(f"\n{'='*60}")
         print(f"Processing RAG Query: '{query_text}'")
-        print('='*60)
+        print("=" * 60)
 
         # Step 1: Vector search
         print("\n[1] Performing vector search...")
@@ -248,7 +250,7 @@ class RAGSystem:
             tool_id="vector_search",
             tool_type=ToolType.RAG_RETRIEVAL,
             function_name="vector_search",
-            parameters={"query": query_text, "top_k": top_k}
+            parameters={"query": query_text, "top_k": top_k},
         )
 
         search_result = await self.executor.execute_async(search_request)
@@ -261,7 +263,7 @@ class RAGSystem:
             tool_id="rerank",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="rerank",
-            parameters={"query": query_text, "chunks": chunks, "top_k": 3}
+            parameters={"query": query_text, "chunks": chunks, "top_k": 3},
         )
 
         rerank_result = await self.executor.execute_async(rerank_request)
@@ -280,15 +282,12 @@ class RAGSystem:
                 error=None,
                 execution_time_ms=search_result.execution_time_ms,
                 timestamp=datetime.now(),
-                token_estimate=len(chunk['text']) // 4
+                token_estimate=len(chunk["text"]) // 4,
             )
             for chunk in reranked_chunks
         ]
 
-        context = ContextData(
-            tool_results=chunk_results,
-            transient_context={"query": query_text}
-        )
+        context = ContextData(tool_results=chunk_results, transient_context={"query": query_text})
 
         optimized = self.context_manager.optimize(context)
         print(f"   Original tokens: {optimized.original_tokens}")
@@ -302,10 +301,7 @@ class RAGSystem:
             tool_id="generate_answer",
             tool_type=ToolType.API_CALL,
             function_name="generate_answer",
-            parameters={
-                "query": query_text,
-                "context": optimized.optimized_text
-            }
+            parameters={"query": query_text, "context": optimized.optimized_text},
         )
 
         answer_result = await self.executor.execute_async(generate_request)
@@ -316,10 +312,10 @@ class RAGSystem:
         print("\n[5] Building response...")
         source_chunks = [
             DocumentChunk(
-                id=chunk['id'],
-                text=chunk['text'],
-                metadata=chunk['metadata'],
-                similarity_score=chunk['similarity_score']
+                id=chunk["id"],
+                text=chunk["text"],
+                metadata=chunk["metadata"],
+                similarity_score=chunk["similarity_score"],
             )
             for chunk in reranked_chunks
         ]
@@ -328,20 +324,20 @@ class RAGSystem:
             answer=answer,
             sources=source_chunks,
             total_tokens=optimized.original_tokens,
-            optimized_tokens=optimized.optimized_tokens
+            optimized_tokens=optimized.optimized_tokens,
         )
 
         # Serialize response efficiently
         serialization_request = SerializationRequest(data=response)
         serialized = self.serializer.serialize(serialization_request)
 
-        print(f"\n[6] Response serialization:")
+        print("\n[6] Response serialization:")
         print(f"   Format: {serialized.format_used.value}")
         print(f"   Savings: {serialized.savings_ratio:.1%}")
 
         # Cache statistics
         cache_stats = self.cache.stats()
-        print(f"\n[7] Cache statistics:")
+        print("\n[7] Cache statistics:")
         print(f"   Hit rate: {cache_stats['hit_rate']:.2%}")
         print(f"   Cache size: {cache_stats['size']}/{cache_stats['max_size']}")
 
@@ -354,11 +350,12 @@ class RAGSystem:
 # Example Usage
 # ============================================================================
 
+
 async def main():
     """Demonstrate RAG system with multiple queries."""
-    print("="*60)
+    print("=" * 60)
     print("RAG System Example with NOCP")
-    print("="*60)
+    print("=" * 60)
 
     # Create RAG system
     rag = RAGSystem()
@@ -377,7 +374,7 @@ async def main():
 
         response = await rag.query(query, top_k=5)
 
-        print(f"\n✓ Answer:")
+        print("\n✓ Answer:")
         print(f"  {response.answer}")
 
         print(f"\n✓ Sources ({len(response.sources)}):")
@@ -386,7 +383,7 @@ async def main():
             print(f"     Similarity: {source.similarity_score:.2f}")
             print(f"     Source: {source.metadata.get('source', 'unknown')}")
 
-        print(f"\n✓ Token Optimization:")
+        print("\n✓ Token Optimization:")
         print(f"  Original: {response.total_tokens} tokens")
         print(f"  Optimized: {response.optimized_tokens} tokens")
         print(f"  Savings: {(1 - response.optimized_tokens/response.total_tokens)*100:.1f}%")
@@ -395,9 +392,9 @@ async def main():
         if i < len(queries):
             await asyncio.sleep(0.5)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("RAG Example Complete!")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

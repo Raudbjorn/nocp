@@ -310,7 +310,7 @@ class ToolExecutor:
 
                 return tool_result
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
                 is_timeout = True
                 if attempt < max_attempts - 1 and retry_config:

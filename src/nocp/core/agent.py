@@ -101,7 +101,7 @@ class HighEfficiencyProxyAgent:
             genai.configure(api_key=api_key)
             self.model_name = model_name or self.config.gemini_model
             self.model = genai.GenerativeModel(self.model_name)
-            self.llm_client = None  # type: ignore[assignment]
+            self.llm_client = None  # type: ignore[assignment]  # type: ignore[assignment]
 
         # Initialize model router for intelligent model selection
         self.model_router = ModelRouter()
@@ -201,7 +201,7 @@ class HighEfficiencyProxyAgent:
 
             serialized_output, output_format, token_savings = self.output_serializer.serialize(
                 response=agent_response,
-                force_format=return_format,  # type: ignore[arg-type]
+                force_format=return_format,  # type: ignore[arg-type]  # type: ignore[arg-type]
             )
 
             serialization_time = (time.perf_counter() - serialization_start) * 1000
@@ -393,7 +393,7 @@ class HighEfficiencyProxyAgent:
                 max_output_tokens=self.config.max_output_tokens,
                 temperature=0.7,
             )
-            response = self.model.generate_content(  # type: ignore[assignment]
+            response = self.model.generate_content(  # type: ignore[assignment]  # type: ignore[assignment]
                 messages,
                 tools=tool_schemas or None,
                 generation_config=generation_config,
@@ -455,13 +455,13 @@ class HighEfficiencyProxyAgent:
                     max_output_tokens=self.config.max_output_tokens,
                     temperature=0.7,
                 )
-                final_response = self.model.generate_content(  # type: ignore[assignment]
+                final_response = self.model.generate_content(  # type: ignore[assignment]  # type: ignore[assignment]
                     self._format_messages_for_llm(transient_ctx, persistent_ctx),
                     generation_config=generation_config,
                 )
-                response_text = final_response.text  # type: ignore[attr-defined]
+                response_text = final_response.text  # type: ignore[attr-defined]  # type: ignore[attr-defined]
             else:
-                response_text = response.text  # type: ignore[attr-defined]
+                response_text = response.text  # type: ignore[attr-defined]  # type: ignore[attr-defined]
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
@@ -517,7 +517,7 @@ class HighEfficiencyProxyAgent:
                 }
             )
 
-        return messages  # type: ignore[return-value]
+        return messages  # type: ignore[return-value]  # type: ignore[return-value]
 
     def get_metrics_summary(self, window_size: int = 100) -> dict[str, Any]:
         """

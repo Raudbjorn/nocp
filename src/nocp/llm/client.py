@@ -84,7 +84,7 @@ class LLMClient:
                 elif provider == "anthropic":
                     litellm.anthropic_key = key
                 elif provider == "vertex_ai":
-                    litellm.vertex_ai_key = key  # type: ignore[attr-defined]
+                    litellm.vertex_ai_key = key  # type: ignore[attr-defined]  # type: ignore[attr-defined]
                 # LiteLLM will handle other providers via environment variables
 
             # Enable caching for token counting
@@ -359,6 +359,6 @@ class LLMClient:
         model = model or self.default_model
         try:
             # LiteLLM has model cost tracking
-            return self.litellm.get_model_info(model)  # type: ignore[return-value]
+            return self.litellm.get_model_info(model)  # type: ignore[return-value]  # type: ignore[return-value]
         except Exception:
             return {"model": model, "info": "unavailable"}

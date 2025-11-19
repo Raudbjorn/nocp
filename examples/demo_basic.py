@@ -11,11 +11,11 @@ This example shows:
 
 import os
 
-from nocp import HighEfficiencyProxyAgent, AgentRequest
+from nocp import AgentRequest, HighEfficiencyProxyAgent
 from nocp.tools import (
-    create_search_database_tool,
     create_analyze_data_tool,
     create_fetch_document_tool,
+    create_search_database_tool,
 )
 from nocp.utils.logging import setup_logging
 
@@ -107,7 +107,9 @@ def main():
         print(f"  Raw Input Tokens:        {metrics.raw_input_tokens:,}")
         print(f"  Compressed Input Tokens: {metrics.compressed_input_tokens:,}")
         print(f"  Compression Ratio:       {metrics.input_compression_ratio:.2%}")
-        print(f"  Token Savings:           {metrics.raw_input_tokens - metrics.compressed_input_tokens:,}")
+        print(
+            f"  Token Savings:           {metrics.raw_input_tokens - metrics.compressed_input_tokens:,}"
+        )
         print()
 
         print("Output Token Optimization:")
@@ -165,6 +167,7 @@ def main():
     except Exception as e:
         print(f"ERROR: {e}")
         import traceback
+
         traceback.print_exc()
 
 

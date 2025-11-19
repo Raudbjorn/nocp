@@ -4,7 +4,6 @@ Command-line interface for nocp.
 Provides commands for setup, running scripts, testing, and benchmarking.
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -47,10 +46,12 @@ def setup(dev: bool = typer.Option(False, "--dev", help="Install development dep
         # Sync dependencies
         if dev:
             console.print("📦 Installing project with dev dependencies...")
-            subprocess.run([*uv_cmd, "sync", "--all-extras"], check=True, capture_output=False)
+            result = subprocess.run(
+                [*uv_cmd, "sync", "--all-extras"], check=True, capture_output=False
+            )
         else:
             console.print("📦 Installing project dependencies...")
-            subprocess.run([*uv_cmd, "sync"], check=True, capture_output=False)
+            result = subprocess.run([*uv_cmd, "sync"], check=True, capture_output=False)
 
         console.print("[bold green]✅ Setup complete![/bold green]")
         console.print("\n[dim]You can now run:[/dim]")
@@ -91,7 +92,7 @@ def run(
         # Run script via uv
         result = subprocess.run(
             [*uv_cmd, "run", "python", str(script)],
-            env={**os.environ, **env},
+            env={**subprocess.os.environ, **env},  # type: ignore[attr-defined]
             check=True,
         )
         sys.exit(result.returncode)
@@ -219,6 +220,8 @@ def health():
         return
 
     # Check API keys (optional)
+    import os
+
     if os.getenv("OPENAI_API_KEY"):
         console.print("[green]✓[/green] OpenAI API key: SET")
     if os.getenv("ANTHROPIC_API_KEY"):
@@ -300,10 +303,10 @@ def config_load(
     config_file: Path = typer.Argument(..., help="Path to configuration YAML file"),
 ):
     """
-    Load and validate configuration from YAML file.
-
-    This loads the configuration and displays it for verification.
-    To actually use this config, set it as your environment or .env file.
+      Load and validate configuration from YAML file.
+    # type: ignore[import-untyped]
+      This loads the configuration and displays it for verification.
+      To actually use this config, set it as your environment or .env file.
     """
     import yaml  # type: ignore[import-untyped]
     from pydantic import ValidationError
