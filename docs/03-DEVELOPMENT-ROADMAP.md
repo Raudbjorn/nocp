@@ -439,7 +439,7 @@ print(f"Result: {response.result.serialized_text}")
 
 ### Milestone 4.1: Caching Layer (Days 22-23)
 - In-memory LRU cache for tool results
-- Optional Redis integration for distributed caching
+- Optional ChromaDB integration for distributed caching
 
 ### Milestone 4.2: Async Support (Days 24-25)
 - Async versions of all modules
