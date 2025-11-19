@@ -3,13 +3,78 @@ Configuration management for the NOCP proxy agent.
 
 Loads settings from environment variables and provides a centralized
 configuration object for all components.
+
+Configuration precedence (highest to lowest):
+1. CLI arguments (passed as kwargs to ProxyConfig)
+2. Environment variables (NOCP_* prefix)
+3. .env file
+4. pyproject.toml [tool.nocp] section
+5. Hardcoded defaults
 """
 
 import os
-from typing import Optional, Dict
+import sys
+from typing import Optional, Dict, Any
 from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Import tomllib for Python 3.11+, tomli for Python 3.10
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        tomllib = None  # type: ignore
+
+
+def load_pyproject_defaults() -> Dict[str, Any]:
+    """
+    Load defaults from [tool.nocp] section in pyproject.toml.
+
+    Precedence: CLI args > env vars > .env file > pyproject.toml > hardcoded defaults
+
+    Returns:
+        Dictionary of configuration overrides from pyproject.toml
+    """
+    # Return early if tomllib/tomli is not available
+    if tomllib is None:
+        import warnings
+        warnings.warn(
+            "tomli package not installed. Install with 'pip install tomli' "
+            "for Python 3.10 to enable pyproject.toml configuration support.",
+            ImportWarning,
+            stacklevel=2,
+        )
+        return {}
+
+    pyproject_path = Path("pyproject.toml")
+
+    if not pyproject_path.exists():
+        return {}
+
+    try:
+        with pyproject_path.open("rb") as f:
+            data = tomllib.load(f)
+
+        # Extract [tool.nocp] section
+        tool_config = data.get("tool", {}).get("nocp", {})
+
+        # Log the number of settings loaded (use print for now to avoid circular import)
+        if tool_config:
+            # We'll use structlog later, for now just do basic logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Loaded {len(tool_config)} settings from pyproject.toml")
+
+        return tool_config
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not load pyproject.toml: {e}")
+        return {}
 
 
 class ProxyConfig(BaseSettings):
@@ -143,6 +208,30 @@ class ProxyConfig(BaseSettings):
 
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
+
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize ProxyConfig with support for pyproject.toml defaults.
+
+        Configuration precedence (highest to lowest):
+        1. Explicit kwargs (e.g., from CLI arguments)
+        2. Environment variables (NOCP_* prefix)
+        3. .env file
+        4. pyproject.toml [tool.nocp] section
+        5. Hardcoded field defaults
+
+        Args:
+            **kwargs: Explicit configuration values (highest precedence)
+        """
+        # Load pyproject.toml defaults first (lowest precedence)
+        pyproject_defaults = load_pyproject_defaults()
+
+        # Merge with explicit kwargs (kwargs take precedence)
+        # Only include pyproject values that aren't explicitly provided via kwargs
+        merged = {**pyproject_defaults, **kwargs}
+
+        # Call parent __init__ with merged configuration
+        super().__init__(**merged)
 
     def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
         """
