@@ -1,6 +1,9 @@
 """
-Utilities for exporting and importing configuration files in YAML format, with support for including or excluding secrets.
-Also provides functionality to print differences between two configuration objects.
+Utilities for exporting and importing configuration files in YAML format.
+
+Provides functionality to export ProxyConfig instances to YAML files with
+optional secret exclusion, import and validate configurations from YAML,
+and display differences between two configuration objects.
 """
 import yaml
 from pathlib import Path
@@ -34,11 +37,7 @@ def export_config(
     # Export config, excluding secrets by default
     exclude_fields = set()
     if not include_secrets:
-        exclude_fields = {
-            'gemini_api_key',
-            'openai_api_key',
-            'anthropic_api_key',
-        }
+        exclude_fields = ProxyConfig.SECRET_FIELDS
 
     config_dict = config.model_dump(
         exclude=exclude_fields,

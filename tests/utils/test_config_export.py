@@ -14,7 +14,6 @@ import pytest
 import tempfile
 import yaml
 from pathlib import Path
-from unittest.mock import patch
 
 from nocp.core.config import ProxyConfig, reset_config
 from nocp.utils.config_export import export_config, import_config, print_config_diff
@@ -34,20 +33,20 @@ class TestConfigExport:
 
     def test_export_config_default_path(self):
         """Test exporting config to default path."""
+        import os
+
+        config = ProxyConfig(gemini_api_key="test-key-123")
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("nocp.utils.config_export.Path") as mock_path:
-                # Create a temporary config
-                config = ProxyConfig(gemini_api_key="test-key-123")
+            original_cwd = Path.cwd()
+            os.chdir(tmpdir)
+            try:
+                # Export without specifying path - should use default .nocp/config.yaml
+                result_path = export_config(config)
 
-                # Mock the default path to use temp directory
-                output_path = Path(tmpdir) / "config.yaml"
-                mock_path.return_value = output_path
-
-                result_path = export_config(config, output_path=output_path)
-
-                # Verify file was created
-                assert result_path.exists()
-                assert result_path == output_path
+                expected_path = Path(".nocp/config.yaml")
+                assert result_path == expected_path
+                assert expected_path.exists()
 
                 # Verify file contents
                 with result_path.open() as f:
@@ -56,6 +55,8 @@ class TestConfigExport:
                 # Secrets should be excluded by default
                 assert "gemini_api_key" not in exported_data
                 assert "gemini_model" in exported_data
+            finally:
+                os.chdir(original_cwd)
 
     def test_export_config_include_secrets(self):
         """Test exporting config with secrets included."""

@@ -324,6 +324,8 @@ def config_load(
     This loads the configuration and displays it for verification.
     To actually use this config, set it as your environment or .env file.
     """
+    import yaml
+    from pydantic import ValidationError
     from .utils.config_export import import_config
 
     try:
@@ -366,7 +368,7 @@ def config_show():
 
     Shows all non-secret configuration values currently in use.
     """
-    from .core.config import get_config
+    from .core.config import get_config, ProxyConfig
 
     try:
         config = get_config()
@@ -380,11 +382,7 @@ def config_show():
         table.add_column("Value", style="yellow")
 
         config_dict = config.model_dump(
-            exclude={
-                'gemini_api_key',
-                'openai_api_key',
-                'anthropic_api_key',
-            },
+            exclude=ProxyConfig.SECRET_FIELDS,
             exclude_none=True
         )
 
@@ -412,6 +410,8 @@ def config_diff(
     Useful for debugging configuration changes or comparing environments
     (e.g., dev vs staging vs production).
     """
+    import yaml
+    from pydantic import ValidationError
     from .utils.config_export import import_config, print_config_diff
 
     try:
@@ -426,6 +426,9 @@ def config_diff(
 
     except FileNotFoundError as e:
         console.print(f"[bold red]✗[/bold red] {e}")
+        sys.exit(1)
+    except (ValidationError, yaml.YAMLError) as e:
+        console.print(f"[bold red]✗[/bold red] Invalid configuration file: {e}")
         sys.exit(1)
     except Exception as e:
         console.print(f"[bold red]✗[/bold red] Diff failed: {e}")

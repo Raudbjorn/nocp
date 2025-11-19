@@ -6,7 +6,7 @@ configuration object for all components.
 """
 
 import os
-from typing import Optional, Dict
+from typing import Optional, Dict, ClassVar, FrozenSet
 from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +26,13 @@ class ProxyConfig(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    # Secret fields that should be excluded from exports by default
+    SECRET_FIELDS: ClassVar[FrozenSet[str]] = frozenset({
+        'gemini_api_key',
+        'openai_api_key',
+        'anthropic_api_key',
+    })
 
     # Gemini API Configuration
     gemini_api_key: str = Field(..., description="Google Gemini API key")
