@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -82,6 +83,7 @@ class LRUCache(CacheBackend):
             max_size: Maximum number of items to cache
             default_ttl: Default time-to-live in seconds (None = no expiration)
         """
+        self._lock = threading.Lock()
         self._cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self._max_size = max_size
         self._default_ttl = default_ttl
@@ -124,24 +126,25 @@ class LRUCache(CacheBackend):
         Returns:
             Cached ToolResult or None if not found/expired
         """
-        if key not in self._cache:
-            self._misses += 1
-            return None
+        with self._lock:
+            if key not in self._cache:
+                self._misses += 1
+                return None
 
-        entry = self._cache[key]
+            entry = self._cache[key]
 
-        # Check expiration
-        if self._is_expired(entry):
-            del self._cache[key]
-            self._misses += 1
-            return None
+            # Check expiration
+            if self._is_expired(entry):
+                del self._cache[key]
+                self._misses += 1
+                return None
 
-        # Move to end (most recently used)
-        self._cache.move_to_end(key)
-        self._hits += 1
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
+            self._hits += 1
 
-        logger.debug(f"Cache hit for key: {key[:16]}...")
-        return entry["value"]
+            logger.debug(f"Cache hit for key: {key[:16]}...")
+            return entry["value"]
 
     def set(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
         """
@@ -152,40 +155,43 @@ class LRUCache(CacheBackend):
             value: ToolResult to cache
             ttl_seconds: Time-to-live in seconds (uses default if None)
         """
-        # Determine expiration time
-        ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
-        expires_at = None if ttl is None else datetime.now() + timedelta(seconds=ttl)
+        with self._lock:
+            # Determine expiration time
+            ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
+            expires_at = None if ttl is None else datetime.now() + timedelta(seconds=ttl)
 
-        # Add to cache
-        self._cache[key] = {
-            "value": value,
-            "expires_at": expires_at,
-            "created_at": datetime.now()
-        }
+            # Add to cache
+            self._cache[key] = {
+                "value": value,
+                "expires_at": expires_at,
+                "created_at": datetime.now()
+            }
 
-        # Move to end (most recently used)
-        self._cache.move_to_end(key)
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
 
-        # Evict oldest if over max size
-        if len(self._cache) > self._max_size:
-            oldest_key = next(iter(self._cache))
-            del self._cache[oldest_key]
-            self._evictions += 1
-            logger.debug(f"Evicted oldest cache entry: {oldest_key[:16]}...")
+            # Evict oldest if over max size
+            if len(self._cache) > self._max_size:
+                oldest_key = next(iter(self._cache))
+                del self._cache[oldest_key]
+                self._evictions += 1
+                logger.debug(f"Evicted oldest cache entry: {oldest_key[:16]}...")
 
-        logger.debug(f"Cached result for key: {key[:16]}... (TTL: {ttl}s)")
+            logger.debug(f"Cached result for key: {key[:16]}... (TTL: {ttl}s)")
 
     def delete(self, key: str) -> None:
         """Delete a value from cache."""
-        if key in self._cache:
-            del self._cache[key]
-            logger.debug(f"Deleted cache entry: {key[:16]}...")
+        with self._lock:
+            if key in self._cache:
+                del self._cache[key]
+                logger.debug(f"Deleted cache entry: {key[:16]}...")
 
     def clear(self) -> None:
         """Clear all cached values."""
-        count = len(self._cache)
-        self._cache.clear()
-        logger.info(f"Cleared {count} cache entries")
+        with self._lock:
+            count = len(self._cache)
+            self._cache.clear()
+            logger.info(f"Cleared {count} cache entries")
 
     def stats(self) -> Dict[str, Any]:
         """
@@ -194,19 +200,20 @@ class LRUCache(CacheBackend):
         Returns:
             Dictionary with hit rate, size, and other metrics
         """
-        total_requests = self._hits + self._misses
-        hit_rate = (self._hits / total_requests) if total_requests > 0 else 0.0
+        with self._lock:
+            total_requests = self._hits + self._misses
+            hit_rate = (self._hits / total_requests) if total_requests > 0 else 0.0
 
-        return {
-            "backend": "in_memory_lru",
-            "size": len(self._cache),
-            "max_size": self._max_size,
-            "hits": self._hits,
-            "misses": self._misses,
-            "hit_rate": hit_rate,
-            "evictions": self._evictions,
-            "default_ttl": self._default_ttl
-        }
+            return {
+                "backend": "in_memory_lru",
+                "size": len(self._cache),
+                "max_size": self._max_size,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": hit_rate,
+                "evictions": self._evictions,
+                "default_ttl": self._default_ttl
+            }
 
     async def get_async(self, key: str) -> Optional[ToolResult]:
         """Async version of get (delegates to sync implementation)."""
@@ -377,7 +384,8 @@ class RedisCache(CacheBackend):
     def clear(self) -> None:
         """Clear all cached values with the key prefix."""
         pattern = f"{self._key_prefix}*"
-        keys = self._redis.keys(pattern)
+        # Use SCAN to avoid blocking the server, as KEYS can be slow on large databases
+        keys = list(self._redis.scan_iter(pattern))
         if keys:
             self._redis.delete(*keys)
             logger.info(f"Cleared {len(keys)} Redis cache entries")

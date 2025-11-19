@@ -9,11 +9,13 @@ This example demonstrates how to build a production-ready chatbot with:
 """
 
 import asyncio
+import ast
+import os
 import sys
 from datetime import datetime
 from typing import List, Optional
 
-sys.path.insert(0, '/home/user/nocp/src')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from pydantic import BaseModel, Field
 
@@ -106,10 +108,10 @@ class ChatBot:
         async def calculate(expression: str) -> dict:
             """Perform a calculation."""
             try:
-                # In production, use safer evaluation
-                result = eval(expression, {"__builtins__": {}}, {})
+                # Use ast.literal_eval for safer evaluation of simple expressions
+                result = ast.literal_eval(expression)
                 return {"expression": expression, "result": result}
-            except Exception as e:
+            except (ValueError, SyntaxError) as e:
                 return {"expression": expression, "error": str(e)}
 
         @self.executor.register_async_tool("set_reminder")

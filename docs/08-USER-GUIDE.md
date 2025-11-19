@@ -731,10 +731,11 @@ manager = ContextManager(compression_threshold=10_000)
 
 # Ensure token count is high enough
 context = ContextData(tool_results=results)
-raw_text = manager._context_to_text(context)
-token_count = manager.estimate_tokens(raw_text)
 
-print(f"Tokens: {token_count}")  # Must be > threshold
+# Optimize to check if compression is triggered
+optimized = manager.optimize(context)
+print(f"Original tokens: {optimized.original_tokens}")
+print(f"Method used: {optimized.method_used}")  # Should not be NONE if > threshold
 ```
 
 ### Issue: Async tools not working

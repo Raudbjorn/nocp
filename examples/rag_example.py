@@ -13,11 +13,12 @@ Features:
 
 import asyncio
 import hashlib
+import os
 import sys
 from datetime import datetime
 from typing import List
 
-sys.path.insert(0, '/home/user/nocp/src')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from pydantic import BaseModel, Field
 

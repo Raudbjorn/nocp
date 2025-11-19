@@ -7,6 +7,7 @@ to enable concurrent tool execution and better performance.
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
@@ -22,8 +23,11 @@ from ..models.contracts import (
     SerializationRequest,
     SerializedOutput,
     SerializationFormat,
+    ToolRequest,
 )
 from ..serializers.toon import TOONEncoder
+
+logger = logging.getLogger(__name__)
 
 
 class AsyncContextManager:
@@ -110,6 +114,7 @@ class AsyncContextManager:
                 compressed_text = raw_text
         except Exception as e:
             # Fallback to raw on compression failure
+            logger.warning(f"Compression strategy '{strategy}' failed: {e}. Falling back to raw context.")
             compressed_text = raw_text
             strategy = CompressionMethod.NONE
 
@@ -216,9 +221,8 @@ class AsyncContextManager:
 
         # Call student model asynchronously
         try:
-            # LiteLLM's completion is synchronous, so we run it in a thread pool
-            response = await asyncio.to_thread(
-                self.litellm.completion,
+            # Use native async method for better performance
+            response = await self.litellm.acompletion(
                 model=self.student_model,
                 messages=[
                     {
@@ -251,8 +255,8 @@ class AsyncContextManager:
         else:
             # Summarize using student model asynchronously
             try:
-                summary_response = await asyncio.to_thread(
-                    self.litellm.completion,
+                # Use native async method for better performance
+                summary_response = await self.litellm.acompletion(
                     model=self.student_model,
                     messages=[
                         {
@@ -470,12 +474,12 @@ class ConcurrentToolExecutor:
         self.tool_executor = tool_executor
         self.semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def execute_one(self, request):
+    async def execute_one(self, request: ToolRequest):
         """Execute a single tool request with semaphore control."""
         async with self.semaphore:
             return await self.tool_executor.execute_async(request)
 
-    async def execute_many(self, requests: List) -> List:
+    async def execute_many(self, requests: List[ToolRequest]) -> List:
         """
         Execute multiple tool requests concurrently.
 
@@ -488,7 +492,7 @@ class ConcurrentToolExecutor:
         tasks = [self.execute_one(req) for req in requests]
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def execute_many_ordered(self, requests: List) -> List:
+    async def execute_many_ordered(self, requests: List[ToolRequest]) -> List:
         """
         Execute tools concurrently but return results in order.
 

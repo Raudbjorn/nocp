@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Manual test for caching layer."""
 
+import os
 import sys
 import time
 from datetime import datetime
 
-sys.path.insert(0, '/home/user/nocp/src')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
 from nocp.core.cache import LRUCache, CacheConfig
 from nocp.core.act import ToolExecutor

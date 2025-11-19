@@ -737,7 +737,7 @@ async def main():
     class Response(BaseModel):
         data: list
 
-    response = Response(data=[r.data for r in results if r.success])
+    response = Response(data=[r.data for r in results if isinstance(r, ToolResult) and r.success])
     serialization = serializer.serialize(SerializationRequest(data=response))
 
     print(f"Compression: {optimized.compression_ratio:.2%}")

@@ -9,12 +9,13 @@ This example demonstrates how to efficiently aggregate data from multiple APIs:
 """
 
 import asyncio
+import os
 import sys
 import time
 from datetime import datetime
 from typing import List, Dict, Any
 
-sys.path.insert(0, '/home/user/nocp/src')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from pydantic import BaseModel, Field
 
@@ -173,16 +174,8 @@ class APIAggregator:
         async def fetch_profile(user_id: str) -> dict:
             """Fetch user profile from API."""
             self.stats["total_requests"] += 1
-
-            # Check if cached
-            cache_key = f"profile:{user_id}"
-            cached = self.cache.get(cache_key)
-            if cached:
-                self.stats["cache_hits"] += 1
-                return cached.data
-
-            # Fetch from API
             self.stats["api_calls"] += 1
+            # ToolExecutor handles caching automatically
             result = await MockAPIs.fetch_user_profile(user_id)
             return result
 
@@ -190,14 +183,8 @@ class APIAggregator:
         async def fetch_activity(user_id: str) -> dict:
             """Fetch user activity from API."""
             self.stats["total_requests"] += 1
-
-            cache_key = f"activity:{user_id}"
-            cached = self.cache.get(cache_key)
-            if cached:
-                self.stats["cache_hits"] += 1
-                return cached.data
-
             self.stats["api_calls"] += 1
+            # ToolExecutor handles caching automatically
             result = await MockAPIs.fetch_user_activity(user_id)
             return result
 
@@ -205,14 +192,8 @@ class APIAggregator:
         async def fetch_metrics(user_id: str) -> dict:
             """Fetch user metrics from analytics API."""
             self.stats["total_requests"] += 1
-
-            cache_key = f"metrics:{user_id}"
-            cached = self.cache.get(cache_key)
-            if cached:
-                self.stats["cache_hits"] += 1
-                return cached.data
-
             self.stats["api_calls"] += 1
+            # ToolExecutor handles caching automatically
             result = await MockAPIs.fetch_user_metrics(user_id)
             return result
 

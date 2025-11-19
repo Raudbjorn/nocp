@@ -213,8 +213,8 @@ class ToolExecutor:
             if hasattr(self._cache, 'get_by_request_async'):
                 cached_result = await self._cache.get_by_request_async(request)
             else:
-                # Fallback to sync method wrapped in async
-                cached_result = self._cache.get_by_request(request)
+                # Fallback to sync method if async version is not available
+                cached_result = await asyncio.to_thread(self._cache.get_by_request, request)
 
             if cached_result is not None:
                 logger.debug(f"Cache hit for async tool '{request.tool_id}'")
@@ -261,8 +261,8 @@ class ToolExecutor:
                     if hasattr(self._cache, 'set_by_request_async'):
                         await self._cache.set_by_request_async(request, tool_result)
                     else:
-                        # Fallback to sync method
-                        self._cache.set_by_request(request, tool_result)
+                        # Fallback to sync method if async version is not available
+                        await asyncio.to_thread(self._cache.set_by_request, request, tool_result)
 
                 return tool_result
 
