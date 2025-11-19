@@ -3,18 +3,103 @@ Configuration management for the NOCP proxy agent.
 
 Loads settings from environment variables and provides a centralized
 configuration object for all components.
+
+Configuration precedence (highest to lowest):
+1. CLI arguments (passed as kwargs to ProxyConfig)
+2. Environment variables (NOCP_* prefix)
+3. .env file
+4. pyproject.toml [tool.nocp] section
+5. Hardcoded defaults
 """
 
 import os
+import sys
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
+
+# Import tomllib for Python 3.11+, tomli for Python 3.10
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        tomllib = None  # type: ignore
 
 from ..models.enums import OutputFormat, LogLevel, CompressionStrategy, LLMProvider
 
 logger = logging.getLogger(__name__)
+
+
+def load_pyproject_defaults() -> Dict[str, Any]:
+    """
+    Load defaults from [tool.nocp] section in pyproject.toml.
+
+    Precedence: CLI args > env vars > .env file > pyproject.toml > hardcoded defaults
+
+    Returns:
+        Dictionary of configuration overrides from pyproject.toml
+    """
+    # Return early if tomllib/tomli is not available
+    if tomllib is None:
+        import warnings
+        warnings.warn(
+            "tomli package not installed. Install with 'pip install tomli' "
+            "for Python 3.10 to enable pyproject.toml configuration support.",
+            ImportWarning,
+            stacklevel=2,
+        )
+        return {}
+
+    pyproject_path = Path("pyproject.toml")
+
+    if not pyproject_path.exists():
+        return {}
+
+    try:
+        with pyproject_path.open("rb") as f:
+            data = tomllib.load(f)
+
+        # Extract [tool.nocp] section
+        tool_config = data.get("tool", {}).get("nocp", {})
+
+        # Log the number of settings loaded
+        if tool_config:
+            logger.debug(f"Loaded {len(tool_config)} settings from pyproject.toml")
+
+        return tool_config
+
+    except (OSError, AttributeError) as e:
+        # OSError: file I/O errors
+        # AttributeError: tomllib.TOMLDecodeError doesn't exist if tomllib is None
+        logger.warning(f"Could not load pyproject.toml: {e}")
+        return {}
+    except Exception as e:
+        # Catch tomllib.TOMLDecodeError and any other parsing errors
+        logger.warning(f"Could not parse pyproject.toml: {e}")
+        return {}
+
+
+class PyProjectTomlSettingsSource(PydanticBaseSettingsSource):
+    """
+    A pydantic-settings source that loads configuration from pyproject.toml.
+
+    This custom settings source enables loading configuration from the [tool.nocp]
+    section in pyproject.toml, following Python packaging standards.
+    """
+
+    def get_field_value(
+        self, field_name: str, field_info: Any
+    ) -> tuple[Any, str, bool]:
+        """Not used in this implementation."""
+        return None, "", False
+
+    def __call__(self) -> Dict[str, Any]:
+        """Load and return configuration from pyproject.toml."""
+        return load_pyproject_defaults()
 
 
 class ProxyConfig(BaseSettings):
@@ -175,6 +260,37 @@ class ProxyConfig(BaseSettings):
 
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """
+        Customize the sources and their priority for loading configuration.
+
+        Configuration precedence (highest to lowest):
+        1. init_settings - Explicit kwargs passed to ProxyConfig()
+        2. env_settings - Environment variables (NOCP_* prefix)
+        3. dotenv_settings - .env file
+        4. PyProjectTomlSettingsSource - pyproject.toml [tool.nocp] section
+        5. file_secret_settings - Secret files (if any)
+        6. Default field values
+
+        Returns:
+            Tuple of settings sources in priority order
+        """
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            PyProjectTomlSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
     @field_validator('default_compression_threshold')
     @classmethod
