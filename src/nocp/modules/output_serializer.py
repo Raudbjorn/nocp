@@ -9,11 +9,12 @@ TOON and compact JSON based on data structure tabularity.
 """
 
 import json
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel
 
 from ..core.config import get_config
+from ..models.enums import OutputFormat
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
 
@@ -38,8 +39,8 @@ class OutputSerializer:
     def serialize(
         self,
         response: BaseModel,
-        force_format: Literal["toon", "compact_json", "json"] | None = None,
-    ) -> tuple[str, Literal["toon", "compact_json", "json"], int]:
+        force_format: OutputFormat | None = None,
+    ) -> tuple[str, OutputFormat, int]:
         """
         Serialize Pydantic response to optimal format.
 
@@ -72,9 +73,9 @@ class OutputSerializer:
         )
 
         # Serialize using chosen format
-        if format_to_use == "toon":
+        if format_to_use == OutputFormat.TOON:
             serialized = self._serialize_to_toon(response_dict)
-        elif format_to_use == "compact_json":
+        elif format_to_use == OutputFormat.COMPACT_JSON:
             serialized = self._serialize_to_compact_json(response_dict)
         else:
             serialized = self._serialize_to_json(response_dict)
@@ -102,7 +103,7 @@ class OutputSerializer:
     def _negotiate_format(
         self,
         data: dict[str, Any],
-    ) -> Literal["toon", "compact_json", "json"]:
+    ) -> OutputFormat:
         """
         Implement Format Negotiation Layer.
 
@@ -124,10 +125,10 @@ class OutputSerializer:
 
         # If highly tabular, use TOON
         if tabularity_score >= self.config.toon_fallback_threshold:
-            return "toon"
+            return OutputFormat.TOON
 
         # Otherwise, use compact JSON
-        return "compact_json"
+        return OutputFormat.COMPACT_JSON
 
     def _calculate_tabularity(self, data: dict[str, Any]) -> float:
         """

@@ -259,9 +259,7 @@ class ReportGenerator:
         md += "\n"
 
         # Overall assessment
-        all_passed = all(
-            criteria.get(k, {}).get("status") == "PASS" for k in criteria_targets.keys()
-        )
+        all_passed = all(criteria.get(k, {}).get("status") == "PASS" for k in criteria_targets)
 
         if all_passed:
             md += "### ✅ Overall Assessment: **PASS**\n\n"

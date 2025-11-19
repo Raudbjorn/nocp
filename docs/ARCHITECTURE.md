@@ -357,8 +357,8 @@ The stateless design enables horizontal scaling:
 ┌─────────┐     ┌─────────────┐
 │ Load    │────▶│  Agent 1    │
 │Balancer │     ├─────────────┤
-│         │────▶│  Agent 2    │────▶ Redis
-│         │     ├─────────────┤      (Sessions)
+│         │────▶│  Agent 2    │────▶ ChromaDB
+│         │     ├─────────────┤      (Cache)
 │         │────▶│  Agent 3    │
 └─────────┘     └─────────────┘
                       │

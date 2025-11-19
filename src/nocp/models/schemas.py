@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .enums import OutputFormat
+
 
 class ToolParameter(BaseModel):
     """Schema for a single tool parameter definition."""
@@ -103,7 +105,7 @@ class ContextMetrics(BaseModel):
 
     # Output metrics
     raw_output_tokens: int
-    final_output_format: Literal["toon", "compact_json", "json"]
+    final_output_format: OutputFormat
     output_token_savings: int
 
     # Performance metrics
@@ -154,9 +156,7 @@ class TransactionLog(BaseModel):
     raw_output_tokens: int = Field(..., description="Tokens in raw response")
     optimized_output_tokens: int = Field(..., description="Tokens after serialization")
     output_compression_ratio: float = Field(..., description="Output compression ratio")
-    serialization_format: Literal["toon", "compact_json", "json"] = Field(
-        ..., description="Final output format"
-    )
+    serialization_format: OutputFormat = Field(..., description="Final output format")
 
     # Performance metrics
     total_latency_ms: float = Field(..., description="End-to-end latency")

@@ -7,8 +7,10 @@ configuration object for all components.
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from ..models.enums import CompressionStrategy, LogLevel, OutputFormat
 
 
 class ProxyConfig(BaseSettings):
@@ -54,20 +56,33 @@ class ProxyConfig(BaseSettings):
         default=2000, description="Maximum output tokens for student summarizer"
     )
 
-    # Compression Strategy Toggles
+    # Compression Strategy Configuration
+    compression_strategies: list[CompressionStrategy] = Field(
+        default=[
+            CompressionStrategy.SEMANTIC_PRUNING,
+            CompressionStrategy.KNOWLEDGE_DISTILLATION,
+            CompressionStrategy.HISTORY_COMPACTION,
+        ],
+        description="List of enabled compression strategies",
+    )
+
+    # Legacy boolean flags (deprecated, but kept for backward compatibility)
     enable_semantic_pruning: bool = Field(
-        default=True, description="Enable semantic pruning for RAG/document outputs"
+        default=True,
+        description="[DEPRECATED] Use compression_strategies instead. Enable semantic pruning for RAG/document outputs",
     )
     enable_knowledge_distillation: bool = Field(
-        default=True, description="Enable knowledge distillation via student summarizer"
+        default=True,
+        description="[DEPRECATED] Use compression_strategies instead. Enable knowledge distillation via student summarizer",
     )
     enable_history_compaction: bool = Field(
-        default=True, description="Enable conversation history compaction"
+        default=True,
+        description="[DEPRECATED] Use compression_strategies instead. Enable conversation history compaction",
     )
 
     # Output Serialization Configuration
-    default_output_format: str = Field(
-        default="toon", description="Default output format: toon, compact_json, or json"
+    default_output_format: OutputFormat = Field(
+        default=OutputFormat.TOON, description="Default output format: toon, compact_json, or json"
     )
     toon_fallback_threshold: float = Field(
         default=0.3, description="Tabularity threshold below which to fallback to compact JSON"
@@ -77,7 +92,7 @@ class ProxyConfig(BaseSettings):
     )
 
     # Monitoring and Logging
-    log_level: str = Field(default="INFO", description="Logging level")
+    log_level: LogLevel = Field(default=LogLevel.INFO, description="Logging level")
     enable_metrics_logging: bool = Field(
         default=True, description="Enable detailed metrics logging"
     )
@@ -115,6 +130,56 @@ class ProxyConfig(BaseSettings):
 
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: dict[str, int] = {}
+
+    @model_validator(mode="after")
+    def sync_compression_strategies(self) -> "ProxyConfig":
+        """
+        Sync legacy boolean flags with compression_strategies for backward compatibility.
+
+        This validator ensures a single source of truth by checking if legacy boolean
+        flags were explicitly set and updating the compression_strategies list accordingly.
+        This prevents inconsistent behavior where legacy flags and the new list could
+        conflict.
+
+        Returns:
+            Updated ProxyConfig instance with synchronized configuration
+        """
+        strategies = set(self.compression_strategies)
+
+        # Check if legacy flags were explicitly set by the user via environment variables
+        if "enable_semantic_pruning" in self.model_fields_set:
+            if self.enable_semantic_pruning:
+                strategies.add(CompressionStrategy.SEMANTIC_PRUNING)
+            else:
+                strategies.discard(CompressionStrategy.SEMANTIC_PRUNING)
+
+        if "enable_knowledge_distillation" in self.model_fields_set:
+            if self.enable_knowledge_distillation:
+                strategies.add(CompressionStrategy.KNOWLEDGE_DISTILLATION)
+            else:
+                strategies.discard(CompressionStrategy.KNOWLEDGE_DISTILLATION)
+
+        if "enable_history_compaction" in self.model_fields_set:
+            if self.enable_history_compaction:
+                strategies.add(CompressionStrategy.HISTORY_COMPACTION)
+            else:
+                strategies.discard(CompressionStrategy.HISTORY_COMPACTION)
+
+        # Update the strategies list (sorted for deterministic behavior)
+        self.compression_strategies = sorted(list(strategies), key=lambda s: s.value)
+        return self
+
+    def is_strategy_enabled(self, strategy: CompressionStrategy) -> bool:
+        """
+        Check if a specific compression strategy is enabled.
+
+        Args:
+            strategy: The compression strategy to check
+
+        Returns:
+            True if the strategy is in the enabled list
+        """
+        return strategy in self.compression_strategies
 
     def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
         """
