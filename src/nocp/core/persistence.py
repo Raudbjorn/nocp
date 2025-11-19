@@ -8,11 +8,10 @@ Handles:
 """
 
 import json
-from pathlib import Path
-from typing import Optional, Dict
 from datetime import datetime
+from pathlib import Path
 
-from ..models.context import PersistentContext, TransientContext, ContextSnapshot
+from ..models.context import ContextSnapshot, PersistentContext
 from ..utils.logging import get_logger
 
 
@@ -39,13 +38,9 @@ class PersistenceManager:
         self.logger = get_logger(__name__)
 
         # In-memory cache of active sessions
-        self._session_cache: Dict[str, PersistentContext] = {}
+        self._session_cache: dict[str, PersistentContext] = {}
 
-    def save_persistent_context(
-        self,
-        context: PersistentContext,
-        force: bool = False
-    ) -> bool:
+    def save_persistent_context(self, context: PersistentContext, force: bool = False) -> bool:
         """
         Save persistent context to disk.
 
@@ -63,11 +58,11 @@ class PersistenceManager:
             self._session_cache[context.session_id] = context
 
             # Serialize to JSON
-            context_dict = context.model_dump(mode='json')
+            context_dict = context.model_dump(mode="json")
 
             # Write atomically using temp file
-            temp_file = session_file.with_suffix('.tmp')
-            with open(temp_file, 'w') as f:
+            temp_file = session_file.with_suffix(".tmp")
+            with open(temp_file, "w") as f:
                 json.dump(context_dict, f, indent=2, default=str)
 
             # Atomic rename
@@ -82,7 +77,7 @@ class PersistenceManager:
 
             return True
 
-        except (IOError, OSError, TypeError, ValueError) as e:
+        except (OSError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_save_persistent_context",
                 session_id=context.session_id,
@@ -90,10 +85,7 @@ class PersistenceManager:
             )
             return False
 
-    def load_persistent_context(
-        self,
-        session_id: str
-    ) -> Optional[PersistentContext]:
+    def load_persistent_context(self, session_id: str) -> PersistentContext | None:
         """
         Load persistent context from disk.
 
@@ -118,7 +110,7 @@ class PersistenceManager:
                 )
                 return None
 
-            with open(session_file, 'r') as f:
+            with open(session_file) as f:
                 context_dict = json.load(f)
 
             # Deserialize from JSON
@@ -136,7 +128,7 @@ class PersistenceManager:
 
             return context
 
-        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_load_persistent_context",
                 session_id=session_id,
@@ -147,7 +139,7 @@ class PersistenceManager:
     def create_session(
         self,
         session_id: str,
-        system_instructions: Optional[str] = None,
+        system_instructions: str | None = None,
     ) -> PersistentContext:
         """
         Create a new persistent context session.
@@ -161,7 +153,8 @@ class PersistenceManager:
         """
         context = PersistentContext(
             session_id=session_id,
-            system_instructions=system_instructions or PersistentContext.model_fields['system_instructions'].default,
+            system_instructions=system_instructions
+            or PersistentContext.model_fields["system_instructions"].default,
         )
 
         # Save to disk
@@ -174,7 +167,7 @@ class PersistenceManager:
     def get_or_create_session(
         self,
         session_id: str,
-        system_instructions: Optional[str] = None,
+        system_instructions: str | None = None,
     ) -> PersistentContext:
         """
         Get existing session or create new one.
@@ -233,7 +226,7 @@ class PersistenceManager:
             self.logger.info("session_deleted", session_id=session_id)
             return True
 
-        except (IOError, OSError) as e:
+        except OSError as e:
             self.logger.error(
                 "failed_to_delete_session",
                 session_id=session_id,
@@ -267,7 +260,7 @@ class PersistenceManager:
 
             return sorted(sessions)
 
-        except (IOError, OSError) as e:
+        except OSError as e:
             self.logger.error("failed_to_list_sessions", error=str(e))
             return []
 
@@ -293,9 +286,9 @@ class PersistenceManager:
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             snapshot_file = snapshots_dir / f"snapshot_{timestamp}.json"
 
-            snapshot_dict = snapshot.model_dump(mode='json')
+            snapshot_dict = snapshot.model_dump(mode="json")
 
-            with open(snapshot_file, 'w') as f:
+            with open(snapshot_file, "w") as f:
                 json.dump(snapshot_dict, f, indent=2, default=str)
 
             self.logger.info(
@@ -306,7 +299,7 @@ class PersistenceManager:
 
             return True
 
-        except (IOError, OSError, TypeError, ValueError) as e:
+        except (OSError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_save_snapshot",
                 session_id=session_id,
@@ -322,10 +315,10 @@ class PersistenceManager:
 
 
 # Global instance
-_persistence_manager: Optional[PersistenceManager] = None
+_persistence_manager: PersistenceManager | None = None
 
 
-def get_persistence_manager(storage_dir: Optional[str] = None) -> PersistenceManager:
+def get_persistence_manager(storage_dir: str | None = None) -> PersistenceManager:
     """
     Get or create the global persistence manager instance.
 

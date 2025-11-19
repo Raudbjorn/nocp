@@ -7,12 +7,11 @@ including the Context Watchdog for drift detection.
 
 import json
 import logging
-import structlog
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
+import structlog
 from rich.console import Console
 
 from ..core.config import get_config
@@ -21,9 +20,7 @@ from ..models.schemas import ContextMetrics
 
 
 def setup_file_logging(
-    log_file: Path,
-    max_bytes: int = 10 * 1024 * 1024,  # 10MB
-    backup_count: int = 5
+    log_file: Path, max_bytes: int = 10 * 1024 * 1024, backup_count: int = 5  # 10MB
 ) -> RotatingFileHandler:
     """
     Configure rotating file handler for logs.
@@ -41,16 +38,12 @@ def setup_file_logging(
     """
     # Create rotating file handler
     file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding='utf-8'
+        log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
     )
 
     # Set formatter for the file handler
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     file_handler.setFormatter(formatter)
 
@@ -81,7 +74,7 @@ def setup_logging() -> None:
         file_handler = setup_file_logging(
             log_file=config.log_file,
             max_bytes=config.log_max_bytes,
-            backup_count=config.log_backup_count
+            backup_count=config.log_backup_count,
         )
 
         # Override file handler formatter to use structlog's JSONRenderer
@@ -120,8 +113,11 @@ def setup_logging() -> None:
         # Use print logger factory for console-only mode with final renderer
         logger_factory = structlog.PrintLoggerFactory()
         processors = shared_processors + [
-            structlog.processors.JSONRenderer() if config.log_level == LogLevel.DEBUG
-            else structlog.dev.ConsoleRenderer(),
+            (
+                structlog.processors.JSONRenderer()
+                if config.log_level == LogLevel.DEBUG
+                else structlog.dev.ConsoleRenderer()
+            ),
         ]
 
     # Configure structlog with appropriate processors
@@ -157,7 +153,7 @@ class MetricsLogger:
     the efficiency delta across transactions.
     """
 
-    def __init__(self, log_file: Optional[Path] = None):
+    def __init__(self, log_file: Path | None = None):
         """
         Initialize metrics logger.
 
@@ -175,10 +171,10 @@ class MetricsLogger:
             self.file_handler = setup_file_logging(
                 log_file=self.log_file,
                 max_bytes=config.log_max_bytes,
-                backup_count=config.log_backup_count
+                backup_count=config.log_backup_count,
             )
             # Override formatter to preserve JSONL format (output only the message)
-            self.file_handler.setFormatter(logging.Formatter('%(message)s'))
+            self.file_handler.setFormatter(logging.Formatter("%(message)s"))
 
             # Create dedicated logger for writing to metrics file
             self.file_logger = logging.getLogger("metrics.file")
@@ -256,7 +252,7 @@ class MetricsLogger:
             net_savings=original_tokens - compressed_tokens - compression_cost,
         )
 
-    def check_drift(self, window_size: int = 100) -> Dict[str, float]:
+    def check_drift(self, window_size: int = 100) -> dict[str, float]:
         """
         Analyze recent transactions for context drift.
 
@@ -288,9 +284,7 @@ class MetricsLogger:
 
         # Calculate drift metrics
         efficiency_deltas = [t.get("efficiency_delta", 0) for t in transactions]
-        compression_ratios = [
-            t.get("input_compression_ratio", 1.0) for t in transactions
-        ]
+        compression_ratios = [t.get("input_compression_ratio", 1.0) for t in transactions]
 
         avg_efficiency_delta = sum(efficiency_deltas) / len(efficiency_deltas)
         avg_compression_ratio = sum(compression_ratios) / len(compression_ratios)
@@ -305,6 +299,7 @@ class MetricsLogger:
 
         # Get drift threshold from config
         from ..core.config import get_config
+
         config = get_config()
 
         drift_metrics = {
@@ -325,7 +320,7 @@ class MetricsLogger:
 
 
 # Global metrics logger instance
-_metrics_logger: Optional[MetricsLogger] = None
+_metrics_logger: MetricsLogger | None = None
 
 
 def get_metrics_logger() -> MetricsLogger:
@@ -354,26 +349,13 @@ class ComponentLogger:
         self.component = component_name
         self.console = Console()
 
-    def log_operation_start(
-        self,
-        operation: str,
-        details: Optional[dict] = None
-    ):
+    def log_operation_start(self, operation: str, details: dict | None = None):
         """Log operation start with emoji"""
-        self.console.print(
-            f"[cyan]▶[/cyan] [{self.component}] Starting: {operation}"
-        )
-        self.logger.info(
-            f"{operation}_started",
-            component=self.component,
-            **(details or {})
-        )
+        self.console.print(f"[cyan]▶[/cyan] [{self.component}] Starting: {operation}")
+        self.logger.info(f"{operation}_started", component=self.component, **(details or {}))
 
     def log_operation_complete(
-        self,
-        operation: str,
-        duration_ms: Optional[float] = None,
-        details: Optional[dict] = None
+        self, operation: str, duration_ms: float | None = None, details: dict | None = None
     ):
         """Log operation completion"""
         msg = f"[green]✅[/green] [{self.component}] Completed: {operation}"
@@ -389,18 +371,11 @@ class ComponentLogger:
 
         self.logger.info(f"{operation}_completed", **log_data)
 
-    def log_operation_error(
-        self,
-        operation: str,
-        error: Exception,
-        details: Optional[dict] = None
-    ):
+    def log_operation_error(self, operation: str, error: Exception, details: dict | None = None):
         """Log operation error"""
         from rich.traceback import Traceback
 
-        self.console.print(
-            f"[red]❌[/red] [{self.component}] Failed: {operation}"
-        )
+        self.console.print(f"[red]❌[/red] [{self.component}] Failed: {operation}")
         trace = Traceback.from_exception(
             type(error),
             error,
@@ -409,22 +384,20 @@ class ComponentLogger:
         self.console.print(trace)
 
         log_data = details.copy() if details else {}
-        log_data.update({
-            "component": self.component,
-            "error_type": type(error).__name__,
-            "error_message": str(error)
-        })
+        log_data.update(
+            {
+                "component": self.component,
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+            }
+        )
 
         self.logger.error(f"{operation}_failed", **log_data, exc_info=error)
 
     def log_metric(self, metric_name: str, value: Any, unit: str = ""):
         """Log a metric"""
         self.logger.info(
-            "metric",
-            component=self.component,
-            metric=metric_name,
-            value=value,
-            unit=unit
+            "metric", component=self.component, metric=metric_name, value=value, unit=unit
         )
 
 

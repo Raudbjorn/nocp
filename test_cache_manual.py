@@ -5,10 +5,10 @@ import os
 import sys
 import time
 from datetime import datetime
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
-from nocp.core.cache import LRUCache, CacheConfig
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 from nocp.core.act import ToolExecutor
+from nocp.core.cache import CacheConfig, LRUCache
 from nocp.models.contracts import ToolRequest, ToolResult, ToolType
 
 
@@ -25,7 +25,7 @@ def test_basic_cache():
         error=None,
         execution_time_ms=100.0,
         timestamp=datetime.now(),
-        token_estimate=10
+        token_estimate=10,
     )
 
     # Test set and get
@@ -67,7 +67,7 @@ def test_lru_eviction():
             error=None,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
         cache.set(f"key_{i}", result)
 
@@ -98,7 +98,7 @@ def test_tool_executor_with_cache():
         tool_id="test_tool",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="test_func",
-        parameters={"param1": "test"}
+        parameters={"param1": "test"},
     )
 
     # First execution (cache miss)
@@ -160,11 +160,13 @@ def main():
     except AssertionError as e:
         print(f"\n✗ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

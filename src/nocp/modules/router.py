@@ -5,12 +5,11 @@ Parses incoming queries, validates schemas, and prepares initial context
 with minimal token overhead.
 """
 
-from typing import Dict, List, Optional, Any
 import uuid
 
-from ..models.schemas import AgentRequest, ToolDefinition
-from ..models.context import TransientContext, PersistentContext, ConversationMessage
 from ..core.config import get_config
+from ..models.context import ConversationMessage, PersistentContext, TransientContext
+from ..models.schemas import AgentRequest, ToolDefinition
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
 
@@ -33,12 +32,12 @@ class RequestRouter:
         self.token_counter = TokenCounter()
 
         # In-memory session storage (in production, use Redis/DB)
-        self._sessions: Dict[str, PersistentContext] = {}
+        self._sessions: dict[str, PersistentContext] = {}
 
     def route_request(
         self,
         request: AgentRequest,
-        available_tools: List[ToolDefinition],
+        available_tools: list[ToolDefinition],
     ) -> tuple[TransientContext, PersistentContext, str]:
         """
         Route an incoming request and prepare contexts.
@@ -75,7 +74,7 @@ class RequestRouter:
 
         return transient_ctx, persistent_ctx, transaction_id
 
-    def _get_or_create_session(self, session_id: Optional[str]) -> PersistentContext:
+    def _get_or_create_session(self, session_id: str | None) -> PersistentContext:
         """
         Get existing session or create a new one.
 
@@ -103,7 +102,7 @@ class RequestRouter:
     def _create_transient_context(
         self,
         request: AgentRequest,
-        available_tools: List[ToolDefinition],
+        available_tools: list[ToolDefinition],
         persistent_ctx: PersistentContext,
     ) -> TransientContext:
         """

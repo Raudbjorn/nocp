@@ -2,14 +2,30 @@
 Pytest configuration and shared fixtures.
 """
 
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-from nocp.core import ToolExecutor, ContextManager, OutputSerializer
-from nocp.models.contracts import ToolResult, ToolType, ContextData
+import pytest
+from nocp.core import ContextManager, OutputSerializer, ToolExecutor
 from nocp.core.config import ProxyConfig
+from nocp.models.contracts import ContextData, ToolResult
+
+
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--run-slow", action="store_true", default=False, help="Run slow tests (>1 second)"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip slow tests unless --run-slow is specified."""
+    if not config.getoption("--run-slow", default=False):
+        skip_slow = pytest.mark.skip(reason="need --run-slow option to run")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
 
 
 @pytest.fixture
@@ -38,10 +54,7 @@ def tool_executor():
 @pytest.fixture
 def context_manager():
     """Create a ContextManager for testing."""
-    return ContextManager(
-        compression_threshold=1000,
-        enable_litellm=False  # Disable for testing
-    )
+    return ContextManager(compression_threshold=1000, enable_litellm=False)  # Disable for testing
 
 
 @pytest.fixture
@@ -60,13 +73,14 @@ def sample_tool_result():
         error=None,
         execution_time_ms=10.0,
         timestamp=datetime(2024, 1, 1, 12, 0, 0),
-        token_estimate=50
+        token_estimate=50,
     )
 
 
 # ============================================================================
 # Enhanced Test Fixtures (D5.3.3)
 # ============================================================================
+
 
 @pytest.fixture
 def temp_dir():
@@ -92,7 +106,7 @@ def sample_tool_output():
             for i in range(10)
         ],
         "total": 10,
-        "page": 1
+        "page": 1,
     }
 
 
@@ -108,10 +122,7 @@ def large_tool_output():
                     "field2": i * 100,
                     "field3": ["item1", "item2", "item3"],
                 },
-                "metadata": {
-                    "created": "2024-01-01T00:00:00Z",
-                    "updated": "2024-01-01T00:00:00Z"
-                }
+                "metadata": {"created": "2024-01-01T00:00:00Z", "updated": "2024-01-01T00:00:00Z"},
             }
             for i in range(100)
         ]
@@ -171,9 +182,9 @@ def sample_context_data():
                 error=None,
                 execution_time_ms=100.0,
                 timestamp=datetime(2024, 1, 1, 12, 0, 0),
-                token_estimate=50
+                token_estimate=50,
             )
         ],
         transient_context={"query": "test query"},
-        max_tokens=10000
+        max_tokens=10000,
     )

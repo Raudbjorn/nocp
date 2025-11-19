@@ -9,26 +9,25 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import List
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from nocp.core.act import ToolExecutor
+from nocp.core.articulate import OutputSerializer
+from nocp.core.assess import ContextManager
 from nocp.core.async_modules import (
     AsyncContextManager,
     AsyncOutputSerializer,
-    ConcurrentToolExecutor
+    ConcurrentToolExecutor,
 )
-from nocp.core.assess import ContextManager
-from nocp.core.articulate import OutputSerializer
 from nocp.core.cache import LRUCache
 from nocp.models.contracts import (
+    ContextData,
+    SerializationRequest,
     ToolRequest,
     ToolResult,
     ToolType,
-    ContextData,
-    SerializationRequest
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # Sample data models
@@ -40,7 +39,7 @@ class User(BaseModel):
 
 
 class UserListResponse(BaseModel):
-    users: List[User]
+    users: list[User]
     total: int
     page: int
 
@@ -48,12 +47,7 @@ class UserListResponse(BaseModel):
 def create_sample_users(count: int = 100) -> UserListResponse:
     """Create sample user data for benchmarking."""
     users = [
-        User(
-            id=i,
-            name=f"User {i}",
-            email=f"user{i}@example.com",
-            age=20 + (i % 50)
-        )
+        User(id=i, name=f"User {i}", email=f"user{i}@example.com", age=20 + (i % 50))
         for i in range(count)
     ]
     return UserListResponse(users=users, total=count, page=1)
@@ -64,7 +58,7 @@ def benchmark_sync_tool_execution(iterations: int = 100):
     """Benchmark synchronous tool execution."""
     print(f"\n{'='*60}")
     print(f"Benchmark: Sync Tool Execution ({iterations} iterations)")
-    print('='*60)
+    print("=" * 60)
 
     executor = ToolExecutor()
 
@@ -78,7 +72,7 @@ def benchmark_sync_tool_execution(iterations: int = 100):
         tool_id="compute",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="compute",
-        parameters={"value": 1000}
+        parameters={"value": 1000},
     )
 
     start = time.perf_counter()
@@ -97,7 +91,7 @@ async def benchmark_async_tool_execution(iterations: int = 100):
     """Benchmark asynchronous tool execution."""
     print(f"\n{'='*60}")
     print(f"Benchmark: Async Tool Execution ({iterations} iterations)")
-    print('='*60)
+    print("=" * 60)
 
     executor = ToolExecutor()
 
@@ -111,7 +105,7 @@ async def benchmark_async_tool_execution(iterations: int = 100):
         tool_id="compute_async",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="compute_async",
-        parameters={"value": 1000}
+        parameters={"value": 1000},
     )
 
     start = time.perf_counter()
@@ -129,9 +123,9 @@ async def benchmark_async_tool_execution(iterations: int = 100):
 async def benchmark_concurrent_tool_execution(iterations: int = 100, concurrency: int = 10):
     """Benchmark concurrent tool execution."""
     print(f"\n{'='*60}")
-    print(f"Benchmark: Concurrent Tool Execution")
+    print("Benchmark: Concurrent Tool Execution")
     print(f"  Iterations: {iterations}, Concurrency: {concurrency}")
-    print('='*60)
+    print("=" * 60)
 
     executor = ToolExecutor()
 
@@ -149,7 +143,7 @@ async def benchmark_concurrent_tool_execution(iterations: int = 100, concurrency
             tool_id="compute_concurrent",
             tool_type=ToolType.PYTHON_FUNCTION,
             function_name="compute_concurrent",
-            parameters={"value": 1000}
+            parameters={"value": 1000},
         )
         for _ in range(iterations)
     ]
@@ -172,12 +166,9 @@ def benchmark_sync_context_optimization():
     """Benchmark synchronous context optimization."""
     print(f"\n{'='*60}")
     print("Benchmark: Sync Context Optimization")
-    print('='*60)
+    print("=" * 60)
 
-    manager = ContextManager(
-        compression_threshold=1000,
-        enable_litellm=False
-    )
+    manager = ContextManager(compression_threshold=1000, enable_litellm=False)
 
     # Create sample tool results
     tool_results = [
@@ -188,15 +179,13 @@ def benchmark_sync_context_optimization():
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=250
+            token_estimate=250,
         )
         for i in range(20)
     ]
 
     context = ContextData(
-        tool_results=tool_results,
-        transient_context={"query": "test"},
-        max_tokens=50000
+        tool_results=tool_results, transient_context={"query": "test"}, max_tokens=50000
     )
 
     iterations = 50
@@ -216,12 +205,9 @@ async def benchmark_async_context_optimization():
     """Benchmark asynchronous context optimization."""
     print(f"\n{'='*60}")
     print("Benchmark: Async Context Optimization")
-    print('='*60)
+    print("=" * 60)
 
-    manager = AsyncContextManager(
-        compression_threshold=1000,
-        enable_litellm=False
-    )
+    manager = AsyncContextManager(compression_threshold=1000, enable_litellm=False)
 
     # Create sample tool results
     tool_results = [
@@ -232,15 +218,13 @@ async def benchmark_async_context_optimization():
             error=None,
             execution_time_ms=10.0,
             timestamp=datetime.now(),
-            token_estimate=250
+            token_estimate=250,
         )
         for i in range(20)
     ]
 
     context = ContextData(
-        tool_results=tool_results,
-        transient_context={"query": "test"},
-        max_tokens=50000
+        tool_results=tool_results, transient_context={"query": "test"}, max_tokens=50000
     )
 
     iterations = 50
@@ -260,7 +244,7 @@ def benchmark_sync_serialization():
     """Benchmark synchronous serialization."""
     print(f"\n{'='*60}")
     print("Benchmark: Sync Serialization")
-    print('='*60)
+    print("=" * 60)
 
     serializer = OutputSerializer()
     data = create_sample_users(count=1000)
@@ -283,7 +267,7 @@ async def benchmark_async_serialization():
     """Benchmark asynchronous serialization."""
     print(f"\n{'='*60}")
     print("Benchmark: Async Serialization")
-    print('='*60)
+    print("=" * 60)
 
     serializer = AsyncOutputSerializer()
     data = create_sample_users(count=1000)
@@ -306,7 +290,7 @@ def benchmark_cache_performance():
     """Benchmark cache performance impact."""
     print(f"\n{'='*60}")
     print("Benchmark: Cache Performance Impact")
-    print('='*60)
+    print("=" * 60)
 
     # Without cache
     executor_no_cache = ToolExecutor()
@@ -320,7 +304,7 @@ def benchmark_cache_performance():
         tool_id="compute_no_cache",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="compute_no_cache",
-        parameters={"value": 5000}
+        parameters={"value": 5000},
     )
 
     iterations = 100
@@ -329,7 +313,7 @@ def benchmark_cache_performance():
         executor_no_cache.execute(request, use_cache=False)
     elapsed_no_cache = time.perf_counter() - start
 
-    print(f"Without cache:")
+    print("Without cache:")
     print(f"  Total time: {elapsed_no_cache:.3f}s")
     print(f"  Throughput: {iterations/elapsed_no_cache:.2f} ops/sec")
 
@@ -346,7 +330,7 @@ def benchmark_cache_performance():
         tool_id="compute_with_cache",
         tool_type=ToolType.PYTHON_FUNCTION,
         function_name="compute_with_cache",
-        parameters={"value": 5000}
+        parameters={"value": 5000},
     )
 
     start = time.perf_counter()
@@ -354,7 +338,7 @@ def benchmark_cache_performance():
         executor_with_cache.execute(request_cached, use_cache=True)
     elapsed_with_cache = time.perf_counter() - start
 
-    print(f"\nWith cache (same request repeated):")
+    print("\nWith cache (same request repeated):")
     print(f"  Total time: {elapsed_with_cache:.3f}s")
     print(f"  Throughput: {iterations/elapsed_with_cache:.2f} ops/sec")
     print(f"  Speedup: {elapsed_no_cache/elapsed_with_cache:.2f}x")
@@ -365,27 +349,26 @@ def benchmark_cache_performance():
 
 async def run_all_benchmarks():
     """Run all benchmarks and print summary."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("NOCP Performance Benchmarks - Async vs Sync")
-    print("="*60)
+    print("=" * 60)
 
     results = {}
 
     # Tool execution benchmarks
-    results['sync_tools'] = benchmark_sync_tool_execution(iterations=100)
-    results['async_tools'] = await benchmark_async_tool_execution(iterations=100)
-    results['concurrent_tools'] = await benchmark_concurrent_tool_execution(
-        iterations=100,
-        concurrency=10
+    results["sync_tools"] = benchmark_sync_tool_execution(iterations=100)
+    results["async_tools"] = await benchmark_async_tool_execution(iterations=100)
+    results["concurrent_tools"] = await benchmark_concurrent_tool_execution(
+        iterations=100, concurrency=10
     )
 
     # Context optimization benchmarks
-    results['sync_context'] = benchmark_sync_context_optimization()
-    results['async_context'] = await benchmark_async_context_optimization()
+    results["sync_context"] = benchmark_sync_context_optimization()
+    results["async_context"] = await benchmark_async_context_optimization()
 
     # Serialization benchmarks
-    results['sync_serialization'] = benchmark_sync_serialization()
-    results['async_serialization'] = await benchmark_async_serialization()
+    results["sync_serialization"] = benchmark_sync_serialization()
+    results["async_serialization"] = await benchmark_async_serialization()
 
     # Cache benchmarks
     benchmark_cache_performance()
@@ -393,26 +376,26 @@ async def run_all_benchmarks():
     # Summary
     print(f"\n{'='*60}")
     print("Summary")
-    print('='*60)
+    print("=" * 60)
 
     print("\nTool Execution:")
-    speedup = results['sync_tools'] / results['async_tools']
+    speedup = results["sync_tools"] / results["async_tools"]
     print(f"  Async speedup: {speedup:.2f}x")
 
-    concurrent_speedup = results['sync_tools'] / results['concurrent_tools']
+    concurrent_speedup = results["sync_tools"] / results["concurrent_tools"]
     print(f"  Concurrent speedup (10 concurrent): {concurrent_speedup:.2f}x")
 
     print("\nContext Optimization:")
-    speedup = results['sync_context'] / results['async_context']
+    speedup = results["sync_context"] / results["async_context"]
     print(f"  Async speedup: {speedup:.2f}x")
 
     print("\nSerialization:")
-    speedup = results['sync_serialization'] / results['async_serialization']
+    speedup = results["sync_serialization"] / results["async_serialization"]
     print(f"  Async speedup: {speedup:.2f}x")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Benchmark Complete!")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
 
 def main():
@@ -423,6 +406,7 @@ def main():
     except Exception as e:
         print(f"\nError during benchmarks: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

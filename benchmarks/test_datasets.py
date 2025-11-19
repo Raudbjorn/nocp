@@ -7,10 +7,9 @@ Generates realistic datasets for different scenarios:
 - Database queries with structured results
 """
 
-from typing import Dict, Any, List, Literal
-from datetime import datetime
 import random
-import string
+from datetime import datetime
+from typing import Any, Literal
 
 
 def generate_random_text(word_count: int) -> str:
@@ -24,25 +23,88 @@ def generate_random_text(word_count: int) -> str:
         Random text string
     """
     words = [
-        "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing",
-        "elit", "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore",
-        "et", "dolore", "magna", "aliqua", "enim", "ad", "minim", "veniam",
-        "quis", "nostrud", "exercitation", "ullamco", "laboris", "nisi",
-        "aliquip", "ex", "ea", "commodo", "consequat", "duis", "aute", "irure",
-        "in", "reprehenderit", "voluptate", "velit", "esse", "cillum", "fugiat",
-        "nulla", "pariatur", "excepteur", "sint", "occaecat", "cupidatat",
-        "non", "proident", "sunt", "culpa", "qui", "officia", "deserunt",
-        "mollit", "anim", "id", "est", "laborum", "system", "data", "query",
-        "result", "process", "function", "method", "class", "interface",
-        "implementation", "architecture", "design", "pattern", "service",
+        "lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet",
+        "consectetur",
+        "adipiscing",
+        "elit",
+        "sed",
+        "do",
+        "eiusmod",
+        "tempor",
+        "incididunt",
+        "ut",
+        "labore",
+        "et",
+        "dolore",
+        "magna",
+        "aliqua",
+        "enim",
+        "ad",
+        "minim",
+        "veniam",
+        "quis",
+        "nostrud",
+        "exercitation",
+        "ullamco",
+        "laboris",
+        "nisi",
+        "aliquip",
+        "ex",
+        "ea",
+        "commodo",
+        "consequat",
+        "duis",
+        "aute",
+        "irure",
+        "in",
+        "reprehenderit",
+        "voluptate",
+        "velit",
+        "esse",
+        "cillum",
+        "fugiat",
+        "nulla",
+        "pariatur",
+        "excepteur",
+        "sint",
+        "occaecat",
+        "cupidatat",
+        "non",
+        "proident",
+        "sunt",
+        "culpa",
+        "qui",
+        "officia",
+        "deserunt",
+        "mollit",
+        "anim",
+        "id",
+        "est",
+        "laborum",
+        "system",
+        "data",
+        "query",
+        "result",
+        "process",
+        "function",
+        "method",
+        "class",
+        "interface",
+        "implementation",
+        "architecture",
+        "design",
+        "pattern",
+        "service",
     ]
 
     return " ".join(random.choice(words) for _ in range(word_count))
 
 
-def generate_rag_dataset(
-    size: Literal["small", "medium", "large"]
-) -> Dict[str, Any]:
+def generate_rag_dataset(size: Literal["small", "medium", "large"]) -> dict[str, Any]:
     """
     Generate RAG retrieval dataset.
 
@@ -95,7 +157,9 @@ def generate_rag_dataset(
                 "snippet": doc["content"][:100],
                 "relevance_score": doc["metadata"]["relevance_score"],
             }
-            for doc in sorted(documents, key=lambda d: d["metadata"]["relevance_score"], reverse=True)[:config["num_chunks"]]
+            for doc in sorted(
+                documents, key=lambda d: d["metadata"]["relevance_score"], reverse=True
+            )[: config["num_chunks"]]
         ],
         "total_documents": len(documents),
         "sources": list(set(doc["metadata"]["source"] for doc in documents)),
@@ -112,9 +176,7 @@ def generate_rag_dataset(
     }
 
 
-def generate_api_dataset(
-    size: Literal["small", "medium", "large"]
-) -> Dict[str, Any]:
+def generate_api_dataset(size: Literal["small", "medium", "large"]) -> dict[str, Any]:
     """
     Generate API call dataset with verbose responses.
 
@@ -221,9 +283,7 @@ def generate_api_dataset(
     }
 
 
-def generate_database_dataset(
-    size: Literal["small", "medium", "large"]
-) -> Dict[str, Any]:
+def generate_database_dataset(size: Literal["small", "medium", "large"]) -> dict[str, Any]:
     """
     Generate database query dataset with structured results.
 
@@ -321,7 +381,9 @@ def generate_database_dataset(
             "total_customers": len(customers),
             "total_orders": len(orders),
             "total_revenue": sum(order["total"] for order in orders),
-            "avg_order_value": sum(order["total"] for order in orders) / len(orders) if orders else 0,
+            "avg_order_value": (
+                sum(order["total"] for order in orders) / len(orders) if orders else 0
+            ),
             "products_by_category": {
                 cat: len([p for p in products if p["category"] == cat])
                 for cat in set(p["category"] for p in products)
@@ -353,25 +415,25 @@ if __name__ == "__main__":
     for size in ["small", "medium", "large"]:
         print(f"\n{'='*60}")
         print(f"Size: {size.upper()}")
-        print('='*60)
+        print("=" * 60)
 
         # RAG dataset
         rag = generate_rag_dataset(size)
-        print(f"\nRAG Dataset:")
+        print("\nRAG Dataset:")
         print(f"  Input length: {len(rag['input'])} chars")
         print(f"  Documents: {rag['metadata']['num_documents']}")
         print(f"  Output keys: {list(rag['output'].keys())}")
 
         # API dataset
         api = generate_api_dataset(size)
-        print(f"\nAPI Dataset:")
+        print("\nAPI Dataset:")
         print(f"  Input length: {len(api['input'])} chars")
         print(f"  Users: {api['metadata']['num_users']}")
         print(f"  Transactions: {api['metadata']['num_transactions']}")
 
         # Database dataset
         db = generate_database_dataset(size)
-        print(f"\nDatabase Dataset:")
+        print("\nDatabase Dataset:")
         print(f"  Input length: {len(db['input'])} chars")
         print(f"  Products: {db['metadata']['num_products']}")
         print(f"  Customers: {db['metadata']['num_customers']}")

@@ -13,33 +13,32 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import List, Dict, Any
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-
-from pydantic import BaseModel, Field
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from nocp.core.act import ToolExecutor
-from nocp.core.assess import ContextManager
 from nocp.core.articulate import OutputSerializer
-from nocp.core.cache import LRUCache
+from nocp.core.assess import ContextManager
 from nocp.core.async_modules import ConcurrentToolExecutor
+from nocp.core.cache import LRUCache
 from nocp.models.contracts import (
-    ToolRequest,
-    ToolType,
-    RetryConfig,
     ContextData,
+    RetryConfig,
+    SerializationRequest,
+    ToolRequest,
     ToolResult,
-    SerializationRequest
+    ToolType,
 )
-
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # Data Models
 # ============================================================================
 
+
 class UserProfile(BaseModel):
     """User profile from API."""
+
     user_id: str
     name: str
     email: str
@@ -48,6 +47,7 @@ class UserProfile(BaseModel):
 
 class UserActivity(BaseModel):
     """User activity data."""
+
     user_id: str
     posts: int
     comments: int
@@ -57,6 +57,7 @@ class UserActivity(BaseModel):
 
 class UserMetrics(BaseModel):
     """User metrics from analytics."""
+
     user_id: str
     page_views: int
     session_duration: float
@@ -65,6 +66,7 @@ class UserMetrics(BaseModel):
 
 class AggregatedUserData(BaseModel):
     """Complete aggregated user data."""
+
     profile: UserProfile
     activity: UserActivity
     metrics: UserMetrics
@@ -73,7 +75,8 @@ class AggregatedUserData(BaseModel):
 
 class DashboardData(BaseModel):
     """Dashboard with multiple users."""
-    users: List[AggregatedUserData]
+
+    users: list[AggregatedUserData]
     total_users: int
     aggregation_time_ms: float
     cache_hits: int
@@ -83,6 +86,7 @@ class DashboardData(BaseModel):
 # ============================================================================
 # Simulated APIs
 # ============================================================================
+
 
 class MockAPIs:
     """Simulated external APIs for demonstration."""
@@ -96,7 +100,7 @@ class MockAPIs:
             "user_id": user_id,
             "name": f"User {user_id}",
             "email": f"user{user_id}@example.com",
-            "bio": f"Bio for user {user_id}"
+            "bio": f"Bio for user {user_id}",
         }
 
     @staticmethod
@@ -105,12 +109,13 @@ class MockAPIs:
         await asyncio.sleep(0.08)  # Simulate network latency
 
         import random
+
         return {
             "user_id": user_id,
             "posts": random.randint(0, 100),
             "comments": random.randint(0, 500),
             "likes": random.randint(0, 1000),
-            "last_active": datetime.now().isoformat()
+            "last_active": datetime.now().isoformat(),
         }
 
     @staticmethod
@@ -119,17 +124,19 @@ class MockAPIs:
         await asyncio.sleep(0.12)  # Simulate network latency
 
         import random
+
         return {
             "user_id": user_id,
             "page_views": random.randint(100, 10000),
             "session_duration": round(random.uniform(1.0, 30.0), 2),
-            "bounce_rate": round(random.uniform(0.1, 0.9), 2)
+            "bounce_rate": round(random.uniform(0.1, 0.9), 2),
         }
 
 
 # ============================================================================
 # API Aggregation System
 # ============================================================================
+
 
 class APIAggregator:
     """Production-ready API aggregation system with NOCP optimizations."""
@@ -143,26 +150,19 @@ class APIAggregator:
 
         # Setup concurrent executor (enables parallel API calls)
         self.concurrent = ConcurrentToolExecutor(
-            self.executor,
-            max_concurrent=10  # 10 concurrent API calls
+            self.executor, max_concurrent=10  # 10 concurrent API calls
         )
 
         # Context manager for large responses
         self.context_manager = ContextManager(
-            compression_threshold=5000,
-            target_compression_ratio=0.40,
-            enable_litellm=False
+            compression_threshold=5000, target_compression_ratio=0.40, enable_litellm=False
         )
 
         # Output serializer
         self.serializer = OutputSerializer()
 
         # Statistics tracking
-        self.stats = {
-            "total_requests": 0,
-            "cache_hits": 0,
-            "api_calls": 0
-        }
+        self.stats = {"total_requests": 0, "cache_hits": 0, "api_calls": 0}
 
         # Register tools
         self._register_tools()
@@ -211,7 +211,7 @@ class APIAggregator:
                 function_name="fetch_profile",
                 parameters={"user_id": user_id},
                 timeout_seconds=5,
-                retry_config=RetryConfig(max_attempts=3)
+                retry_config=RetryConfig(max_attempts=3),
             ),
             ToolRequest(
                 tool_id="fetch_activity",
@@ -219,7 +219,7 @@ class APIAggregator:
                 function_name="fetch_activity",
                 parameters={"user_id": user_id},
                 timeout_seconds=5,
-                retry_config=RetryConfig(max_attempts=3)
+                retry_config=RetryConfig(max_attempts=3),
             ),
             ToolRequest(
                 tool_id="fetch_metrics",
@@ -227,7 +227,7 @@ class APIAggregator:
                 function_name="fetch_metrics",
                 parameters={"user_id": user_id},
                 timeout_seconds=5,
-                retry_config=RetryConfig(max_attempts=3)
+                retry_config=RetryConfig(max_attempts=3),
             ),
         ]
 
@@ -239,13 +239,9 @@ class APIAggregator:
         activity = UserActivity(**results[1].data)
         metrics = UserMetrics(**results[2].data)
 
-        return AggregatedUserData(
-            profile=profile,
-            activity=activity,
-            metrics=metrics
-        )
+        return AggregatedUserData(profile=profile, activity=activity, metrics=metrics)
 
-    async def fetch_dashboard(self, user_ids: List[str]) -> DashboardData:
+    async def fetch_dashboard(self, user_ids: list[str]) -> DashboardData:
         """
         Fetch dashboard data for multiple users.
 
@@ -257,7 +253,7 @@ class APIAggregator:
         """
         print(f"\n{'='*60}")
         print(f"Fetching dashboard for {len(user_ids)} users")
-        print('='*60)
+        print("=" * 60)
 
         start_time = time.time()
 
@@ -272,7 +268,9 @@ class APIAggregator:
         print(f"   Fetched data for {len(users_data)} users in {fetch_time:.2f}ms")
         print(f"   API calls made: {self.stats['api_calls']}")
         print(f"   Cache hits: {self.stats['cache_hits']}")
-        print(f"   Cache hit rate: {self.stats['cache_hits']/max(self.stats['total_requests'],1):.1%}")
+        print(
+            f"   Cache hit rate: {self.stats['cache_hits']/max(self.stats['total_requests'],1):.1%}"
+        )
 
         # Step 2: Optimize large response
         print("\n[2] Optimizing response context...")
@@ -286,7 +284,7 @@ class APIAggregator:
                 error=None,
                 execution_time_ms=fetch_time,
                 timestamp=datetime.now(),
-                token_estimate=len(str(user.model_dump())) // 4
+                token_estimate=len(str(user.model_dump())) // 4,
             )
             for user in users_data
         ]
@@ -295,7 +293,9 @@ class APIAggregator:
         optimized = self.context_manager.optimize(context)
 
         if optimized.compression_ratio < 1.0:
-            print(f"   Compressed: {optimized.original_tokens} → {optimized.optimized_tokens} tokens")
+            print(
+                f"   Compressed: {optimized.original_tokens} → {optimized.optimized_tokens} tokens"
+            )
             print(f"   Compression: {(1-optimized.compression_ratio)*100:.1f}%")
             print(f"   Method: {optimized.method_used.value}")
         else:
@@ -308,8 +308,8 @@ class APIAggregator:
             users=users_data,
             total_users=len(users_data),
             aggregation_time_ms=total_time,
-            cache_hits=self.stats['cache_hits'],
-            api_calls=self.stats['api_calls']
+            cache_hits=self.stats["cache_hits"],
+            api_calls=self.stats["api_calls"],
         )
 
         # Step 4: Serialize efficiently
@@ -323,11 +323,11 @@ class APIAggregator:
         print(f"   Savings: {serialized.savings_ratio:.1%}")
 
         print(f"\n{'='*60}")
-        print(f"Dashboard Complete!")
+        print("Dashboard Complete!")
         print(f"  Total time: {total_time:.2f}ms")
         print(f"  Users: {len(users_data)}")
         print(f"  Cache efficiency: {self.stats['cache_hits']}/{self.stats['total_requests']} hits")
-        print('='*60 + "\n")
+        print("=" * 60 + "\n")
 
         return dashboard
 
@@ -336,11 +336,12 @@ class APIAggregator:
 # Example Usage
 # ============================================================================
 
+
 async def main():
     """Demonstrate API aggregation with caching."""
-    print("="*60)
+    print("=" * 60)
     print("API Aggregation Example with NOCP")
-    print("="*60)
+    print("=" * 60)
 
     aggregator = APIAggregator()
 
@@ -364,24 +365,26 @@ async def main():
     dashboard4 = await aggregator.fetch_dashboard(user_ids)
 
     # Final statistics
-    print("\n\n" + "="*60)
+    print("\n\n" + "=" * 60)
     print("Final Statistics")
-    print("="*60)
+    print("=" * 60)
     print(f"  Total API requests: {aggregator.stats['total_requests']}")
     print(f"  Actual API calls: {aggregator.stats['api_calls']}")
     print(f"  Cache hits: {aggregator.stats['cache_hits']}")
-    print(f"  Overall cache hit rate: {aggregator.stats['cache_hits']/max(aggregator.stats['total_requests'],1):.1%}")
+    print(
+        f"  Overall cache hit rate: {aggregator.stats['cache_hits']/max(aggregator.stats['total_requests'],1):.1%}"
+    )
 
     # Cache stats
     cache_stats = aggregator.cache.stats()
-    print(f"\nCache Statistics:")
+    print("\nCache Statistics:")
     print(f"  Size: {cache_stats['size']}/{cache_stats['max_size']}")
     print(f"  Hit rate: {cache_stats['hit_rate']:.1%}")
     print(f"  Evictions: {cache_stats['evictions']}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("API Aggregation Example Complete!")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

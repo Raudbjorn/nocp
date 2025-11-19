@@ -9,7 +9,8 @@ TOON and compact JSON based on data structure tabularity.
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel
 
 from ..core.config import get_config
@@ -38,7 +39,7 @@ class OutputSerializer:
     def serialize(
         self,
         response: BaseModel,
-        force_format: Optional[OutputFormat] = None,
+        force_format: OutputFormat | None = None,
     ) -> tuple[str, OutputFormat, int]:
         """
         Serialize Pydantic response to optimal format.
@@ -92,14 +93,16 @@ class OutputSerializer:
             baseline_tokens=baseline_tokens,
             actual_tokens=actual_tokens,
             token_savings=token_savings,
-            savings_percent=round(100 * token_savings / baseline_tokens, 1) if baseline_tokens > 0 else 0,
+            savings_percent=(
+                round(100 * token_savings / baseline_tokens, 1) if baseline_tokens > 0 else 0
+            ),
         )
 
         return serialized, format_to_use, token_savings
 
     def _negotiate_format(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> OutputFormat:
         """
         Implement Format Negotiation Layer.
@@ -127,7 +130,7 @@ class OutputSerializer:
         # Otherwise, use compact JSON
         return OutputFormat.COMPACT_JSON
 
-    def _calculate_tabularity(self, data: Dict[str, Any]) -> float:
+    def _calculate_tabularity(self, data: dict[str, Any]) -> float:
         """
         Calculate tabularity score (0.0 to 1.0).
 
@@ -171,22 +174,16 @@ class OutputSerializer:
         if isinstance(obj, dict):
             if not obj:
                 return current_depth
-            return max(
-                self._get_max_depth(v, current_depth + 1)
-                for v in obj.values()
-            )
+            return max(self._get_max_depth(v, current_depth + 1) for v in obj.values())
 
         if isinstance(obj, list):
             if not obj:
                 return current_depth
-            return max(
-                self._get_max_depth(item, current_depth + 1)
-                for item in obj
-            )
+            return max(self._get_max_depth(item, current_depth + 1) for item in obj)
 
         return current_depth
 
-    def _count_uniform_arrays(self, data: Dict[str, Any]) -> int:
+    def _count_uniform_arrays(self, data: dict[str, Any]) -> int:
         """Count arrays with uniform structure."""
         uniform_count = 0
 
@@ -205,7 +202,7 @@ class OutputSerializer:
 
         return uniform_count
 
-    def _serialize_to_toon(self, data: Dict[str, Any]) -> str:
+    def _serialize_to_toon(self, data: dict[str, Any]) -> str:
         """
         Serialize to TOON format.
 
@@ -239,7 +236,7 @@ class OutputSerializer:
             )
             return self._serialize_to_compact_json(data)
 
-    def _serialize_to_compact_json(self, data: Dict[str, Any]) -> str:
+    def _serialize_to_compact_json(self, data: dict[str, Any]) -> str:
         """
         Serialize to compact JSON (no whitespace).
 
@@ -251,7 +248,7 @@ class OutputSerializer:
         """
         return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
 
-    def _serialize_to_json(self, data: Dict[str, Any]) -> str:
+    def _serialize_to_json(self, data: dict[str, Any]) -> str:
         """
         Serialize to formatted JSON (baseline for comparison).
 
@@ -263,7 +260,7 @@ class OutputSerializer:
         """
         return json.dumps(data, indent=2, ensure_ascii=False)
 
-    def analyze_output_structure(self, response: BaseModel) -> Dict[str, Any]:
+    def analyze_output_structure(self, response: BaseModel) -> dict[str, Any]:
         """
         Analyze output structure for monitoring/debugging.
 

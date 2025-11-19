@@ -12,17 +12,14 @@ Tests cover:
 
 import json
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
-
-import pytest
+from unittest.mock import Mock, patch
 
 from nocp.core.assess import ContextManager
 from nocp.models.contracts import (
-    ContextData,
-    OptimizedContext,
-    CompressionMethod,
-    ToolResult,
     ChatMessage,
+    CompressionMethod,
+    ContextData,
+    ToolResult,
 )
 
 
@@ -34,16 +31,13 @@ class TestTokenCounter:
         manager = ContextManager(enable_litellm=True)
 
         # Mock litellm
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.return_value = 100
 
             tokens = manager.estimate_tokens("Test text", model="gpt-4")
 
             assert tokens == 100
-            mock_litellm.token_counter.assert_called_once_with(
-                model="gpt-4",
-                text="Test text"
-            )
+            mock_litellm.token_counter.assert_called_once_with(model="gpt-4", text="Test text")
 
     def test_token_counter_fallback(self):
         """Test fallback token counting when LiteLLM unavailable."""
@@ -60,7 +54,7 @@ class TestTokenCounter:
         """Test token counting with different model tokenizers."""
         manager = ContextManager(enable_litellm=True)
 
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.return_value = 50
 
             # Test with different models
@@ -75,7 +69,7 @@ class TestTokenCounter:
         # Sample text with known approximate token count
         text = "The quick brown fox jumps over the lazy dog. " * 10  # ~100-120 tokens
 
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             # Simulate LiteLLM returning accurate count
             mock_litellm.token_counter.return_value = 110
 
@@ -89,7 +83,7 @@ class TestTokenCounter:
         """Test graceful fallback when LiteLLM token counting fails."""
         manager = ContextManager(enable_litellm=True)
 
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.side_effect = Exception("API error")
 
             text = "a" * 400
@@ -105,8 +99,7 @@ class TestSemanticPruning:
     def test_semantic_pruning_list_data(self):
         """Test pruning of list-based tool results."""
         manager = ContextManager(
-            compression_threshold=1000,
-            target_compression_ratio=0.4  # 60% reduction
+            compression_threshold=1000, target_compression_ratio=0.4  # 60% reduction
         )
 
         # Create large list of items
@@ -117,12 +110,11 @@ class TestSemanticPruning:
             data=large_list,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=5000  # Large enough to trigger compression
+            token_estimate=5000,  # Large enough to trigger compression
         )
 
         context = ContextData(
-            tool_results=[tool_result],
-            transient_context={"query": "Get top items"}
+            tool_results=[tool_result], transient_context={"query": "Get top items"}
         )
 
         compressed = manager.optimize(context)
@@ -140,15 +132,11 @@ class TestSemanticPruning:
     def test_semantic_pruning_reduction_target(self):
         """Test that semantic pruning achieves >60% reduction."""
         manager = ContextManager(
-            compression_threshold=1000,
-            target_compression_ratio=0.35  # Target 65% reduction
+            compression_threshold=1000, target_compression_ratio=0.35  # Target 65% reduction
         )
 
         # Create document-heavy input
-        documents = [
-            {"id": i, "content": f"Document content {i}. " * 50}
-            for i in range(50)
-        ]
+        documents = [{"id": i, "content": f"Document content {i}. " * 50} for i in range(50)]
 
         tool_result = ToolResult(
             tool_id="rag_search",
@@ -156,12 +144,11 @@ class TestSemanticPruning:
             data=documents,
             execution_time_ms=200.0,
             timestamp=datetime.now(),
-            token_estimate=10000
+            token_estimate=10000,
         )
 
         context = ContextData(
-            tool_results=[tool_result],
-            transient_context={"query": "Summarize documents"}
+            tool_results=[tool_result], transient_context={"query": "Summarize documents"}
         )
 
         compressed = manager.optimize(context)
@@ -176,7 +163,7 @@ class TestSemanticPruning:
         manager = ContextManager(
             compression_threshold=500,
             target_compression_ratio=0.4,
-            enable_litellm=False  # Disable to test semantic pruning directly
+            enable_litellm=False,  # Disable to test semantic pruning directly
         )
 
         # Create large text with multiple paragraphs (make it big enough)
@@ -189,13 +176,13 @@ class TestSemanticPruning:
             data=large_text,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=15000  # Large enough to trigger compression
+            token_estimate=15000,  # Large enough to trigger compression
         )
 
         context = ContextData(
             tool_results=[tool_result],
             transient_context={"query": "Extract key info"},
-            compression_strategy="semantic_pruning"  # Force semantic pruning
+            compression_strategy="semantic_pruning",  # Force semantic pruning
         )
 
         compressed = manager.optimize(context)
@@ -221,9 +208,7 @@ class TestKnowledgeDistillation:
         3. The cost calculation correctly prevents compression when not beneficial
         """
         manager = ContextManager(
-            student_model="openai/gpt-4o-mini",
-            compression_threshold=2000,
-            enable_litellm=True
+            student_model="openai/gpt-4o-mini", compression_threshold=2000, enable_litellm=True
         )
 
         # Create verbose text
@@ -235,16 +220,15 @@ class TestKnowledgeDistillation:
             data=verbose_text,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=50000
+            token_estimate=50000,
         )
 
         context = ContextData(
-            tool_results=[tool_result],
-            transient_context={"query": "Summarize this"}
+            tool_results=[tool_result], transient_context={"query": "Summarize this"}
         )
 
         # Mock LiteLLM completion
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             # Realistic token counting
             mock_litellm.token_counter.side_effect = lambda model, text: len(text) // 4
 
@@ -275,9 +259,7 @@ class TestKnowledgeDistillation:
     def test_knowledge_distillation_cost_benefit(self):
         """Test that compression only happens when savings > overhead."""
         manager = ContextManager(
-            student_model="openai/gpt-4o-mini",
-            compression_threshold=5000,
-            enable_litellm=True
+            student_model="openai/gpt-4o-mini", compression_threshold=5000, enable_litellm=True
         )
 
         # Create text where compression cost would exceed savings
@@ -289,13 +271,10 @@ class TestKnowledgeDistillation:
             data=small_text,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=150
+            token_estimate=150,
         )
 
-        context = ContextData(
-            tool_results=[tool_result],
-            transient_context={"query": "Process"}
-        )
+        context = ContextData(tool_results=[tool_result], transient_context={"query": "Process"})
 
         # Below compression threshold, should not compress
         compressed = manager.optimize(context)
@@ -305,9 +284,7 @@ class TestKnowledgeDistillation:
     def test_knowledge_distillation_fallback_on_error(self):
         """Test fallback to raw text when summarization fails."""
         manager = ContextManager(
-            student_model="openai/gpt-4o-mini",
-            compression_threshold=1000,
-            enable_litellm=True
+            student_model="openai/gpt-4o-mini", compression_threshold=1000, enable_litellm=True
         )
 
         verbose_text = "Content " * 1000
@@ -318,16 +295,13 @@ class TestKnowledgeDistillation:
             data=verbose_text,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=3000
+            token_estimate=3000,
         )
 
-        context = ContextData(
-            tool_results=[tool_result],
-            transient_context={}
-        )
+        context = ContextData(tool_results=[tool_result], transient_context={})
 
         # Mock LiteLLM to fail
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.side_effect = lambda model, text: len(text) // 4
             mock_litellm.completion.side_effect = Exception("API error")
 
@@ -343,10 +317,7 @@ class TestHistoryCompaction:
 
     def test_history_compaction_strategy(self):
         """Test history compaction for long conversations."""
-        manager = ContextManager(
-            compression_threshold=1000,
-            enable_litellm=True
-        )
+        manager = ContextManager(compression_threshold=1000, enable_litellm=True)
 
         # Create long conversation history
         messages = [
@@ -354,19 +325,15 @@ class TestHistoryCompaction:
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i} content here. " * 20,
                 timestamp=datetime.now(),
-                tokens=80
+                tokens=80,
             )
             for i in range(15)  # More than 10 messages
         ]
 
-        context = ContextData(
-            tool_results=[],
-            message_history=messages,
-            transient_context={}
-        )
+        context = ContextData(tool_results=[], message_history=messages, transient_context={})
 
         # Mock LiteLLM
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.side_effect = lambda model, text: len(text) // 4
 
             mock_response = Mock()
@@ -393,13 +360,10 @@ class TestCompressionIntegration:
             data="Small data",
             execution_time_ms=50.0,
             timestamp=datetime.now(),
-            token_estimate=10
+            token_estimate=10,
         )
 
-        context = ContextData(
-            tool_results=[small_result],
-            transient_context={"query": "Test"}
-        )
+        context = ContextData(tool_results=[small_result], transient_context={"query": "Test"})
 
         optimized = manager.optimize(context)
 
@@ -410,10 +374,7 @@ class TestCompressionIntegration:
 
     def test_optimize_strategy_selection(self):
         """Test automatic compression strategy selection."""
-        manager = ContextManager(
-            compression_threshold=1000,
-            enable_litellm=True
-        )
+        manager = ContextManager(compression_threshold=1000, enable_litellm=True)
 
         # Test different data types trigger different strategies
         # Create larger list to trigger compression
@@ -423,15 +384,12 @@ class TestCompressionIntegration:
             data=[{"item": i, "data": f"Data {i}" * 20} for i in range(200)],
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=15000  # Large enough to trigger compression
+            token_estimate=15000,  # Large enough to trigger compression
         )
 
-        context = ContextData(
-            tool_results=[list_result],
-            transient_context={"query": "Get items"}
-        )
+        context = ContextData(tool_results=[list_result], transient_context={"query": "Get items"})
 
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.side_effect = lambda model, text: len(text) // 4
 
             optimized = manager.optimize(context)
@@ -451,13 +409,10 @@ class TestCompressionIntegration:
             data=[f"Item {i}" for i in range(100)],
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=3000
+            token_estimate=3000,
         )
 
-        context = ContextData(
-            tool_results=[large_result],
-            transient_context={}
-        )
+        context = ContextData(tool_results=[large_result], transient_context={})
 
         optimized = manager.optimize(context)
 
@@ -466,10 +421,7 @@ class TestCompressionIntegration:
 
     def test_optimize_with_explicit_strategy(self):
         """Test optimization with user-specified compression strategy."""
-        manager = ContextManager(
-            compression_threshold=1000,
-            enable_litellm=True
-        )
+        manager = ContextManager(compression_threshold=1000, enable_litellm=True)
 
         tool_result = ToolResult(
             tool_id="test_tool",
@@ -477,16 +429,16 @@ class TestCompressionIntegration:
             data="Text content " * 500,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=2000
+            token_estimate=2000,
         )
 
         context = ContextData(
             tool_results=[tool_result],
             transient_context={"query": "Test"},
-            compression_strategy="semantic_pruning"
+            compression_strategy="semantic_pruning",
         )
 
-        with patch.object(manager, 'litellm') as mock_litellm:
+        with patch.object(manager, "litellm") as mock_litellm:
             mock_litellm.token_counter.side_effect = lambda model, text: len(text) // 4
 
             optimized = manager.optimize(context)
@@ -502,11 +454,7 @@ class TestEdgeCases:
         """Test handling of empty context."""
         manager = ContextManager()
 
-        context = ContextData(
-            tool_results=[],
-            transient_context={},
-            message_history=[]
-        )
+        context = ContextData(tool_results=[], transient_context={}, message_history=[])
 
         optimized = manager.optimize(context)
 
@@ -525,10 +473,7 @@ class TestEdgeCases:
 
     def test_compression_error_handling(self):
         """Test graceful degradation on compression errors."""
-        manager = ContextManager(
-            compression_threshold=1000,
-            enable_litellm=True
-        )
+        manager = ContextManager(compression_threshold=1000, enable_litellm=True)
 
         tool_result = ToolResult(
             tool_id="test_tool",
@@ -536,16 +481,15 @@ class TestEdgeCases:
             data="Content " * 1000,
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=3000
+            token_estimate=3000,
         )
 
-        context = ContextData(
-            tool_results=[tool_result],
-            transient_context={}
-        )
+        context = ContextData(tool_results=[tool_result], transient_context={})
 
         # Force an error in compression
-        with patch.object(manager, '_semantic_pruning', side_effect=Exception("Compression failed")):
+        with patch.object(
+            manager, "_semantic_pruning", side_effect=Exception("Compression failed")
+        ):
             optimized = manager.optimize(context)
 
             # Should fall back to NONE and return raw text
@@ -562,13 +506,13 @@ class TestEdgeCases:
             data="Test data",
             execution_time_ms=100.0,
             timestamp=datetime.now(),
-            token_estimate=2000
+            token_estimate=2000,
         )
 
         context = ContextData(
             tool_results=[tool_result],
             transient_context={},
-            compression_strategy="invalid_strategy"
+            compression_strategy="invalid_strategy",
         )
 
         optimized = manager.optimize(context)
@@ -578,5 +522,5 @@ class TestEdgeCases:
             CompressionMethod.SEMANTIC_PRUNING,
             CompressionMethod.KNOWLEDGE_DISTILLATION,
             CompressionMethod.HISTORY_COMPACTION,
-            CompressionMethod.NONE
+            CompressionMethod.NONE,
         ]

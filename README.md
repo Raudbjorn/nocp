@@ -192,6 +192,16 @@ export GEMINI_API_KEY='your-key-here'
 
 ## Configuration
 
+NOCP supports multiple configuration methods with the following precedence (highest to lowest):
+
+1. **CLI arguments** - Explicit kwargs passed to `ProxyConfig()`
+2. **Environment variables** - Prefixed with `NOCP_`
+3. **.env file** - Local environment configuration
+4. **pyproject.toml** - Project-specific defaults via `[tool.nocp]` section
+5. **Hardcoded defaults** - Built-in fallback values
+
+### Option 1: Environment Variables (.env file)
+
 Create a `.env` file in the project root:
 
 ```bash
@@ -199,23 +209,53 @@ Create a `.env` file in the project root:
 cp .env.example .env
 
 # Edit with your settings
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
+NOCP_GEMINI_API_KEY=your_gemini_api_key_here
+NOCP_GEMINI_MODEL=gemini-2.5-flash
 
 # Compression settings
-DEFAULT_COMPRESSION_THRESHOLD=5000
-ENABLE_SEMANTIC_PRUNING=true
-ENABLE_KNOWLEDGE_DISTILLATION=true
-ENABLE_HISTORY_COMPACTION=true
+NOCP_DEFAULT_COMPRESSION_THRESHOLD=5000
+NOCP_ENABLE_SEMANTIC_PRUNING=true
+NOCP_ENABLE_KNOWLEDGE_DISTILLATION=true
+NOCP_ENABLE_HISTORY_COMPACTION=true
 
 # Output settings
-DEFAULT_OUTPUT_FORMAT=toon
-ENABLE_FORMAT_NEGOTIATION=true
+NOCP_DEFAULT_OUTPUT_FORMAT=toon
+NOCP_ENABLE_FORMAT_NEGOTIATION=true
 
 # Monitoring
-ENABLE_METRICS_LOGGING=true
-METRICS_LOG_FILE=./logs/metrics.jsonl
+NOCP_ENABLE_METRICS_LOGGING=true
+NOCP_METRICS_LOG_FILE=./logs/metrics.jsonl
 ```
+
+### Option 2: PyProject.toml (Recommended for Teams)
+
+Add project-specific defaults to your `pyproject.toml`:
+
+```toml
+[tool.nocp]
+# Project-specific NOCP defaults
+default_compression_threshold = 5000
+enable_semantic_pruning = true
+enable_knowledge_distillation = false
+default_output_format = "toon"
+log_level = "INFO"
+
+# LLM settings
+litellm_default_model = "gemini/gemini-2.0-flash-exp"
+litellm_fallback_models = "gemini/gemini-1.5-flash,openai/gpt-4o-mini"
+
+# Metrics
+enable_metrics_logging = true
+metrics_log_file = ".nocp/metrics.jsonl"
+```
+
+**Benefits of pyproject.toml configuration:**
+- ✅ Share configuration via version control
+- ✅ No need to set environment variables for project defaults
+- ✅ Follows Python packaging standards (like `tool.ruff`, `tool.mypy`)
+- ✅ Clear separation: `pyproject.toml` (project) vs `.env` (local secrets)
+
+**Note:** Keep API keys in `.env` (not in version control), use `pyproject.toml` for project defaults.
 
 ## Quick Start
 
@@ -329,6 +369,55 @@ ruff check src/nocp
 # Type checking
 mypy src/nocp
 ```
+
+### Pre-commit Hooks (Recommended)
+
+NOCP uses pre-commit hooks to automatically enforce code quality standards before each commit. This ensures consistent formatting, catches common issues early, and reduces CI failures.
+
+#### Setup
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install git hooks
+pre-commit install
+```
+
+#### What the hooks do
+
+The pre-commit configuration automatically runs the following checks before each commit:
+
+- **Code Formatting**: Black automatically formats Python code to ensure consistency
+- **Linting**: Ruff checks for code quality issues and auto-fixes where possible
+- **Type Checking**: MyPy validates type annotations
+- **General Checks**:
+  - Remove trailing whitespace
+  - Ensure files end with a newline
+  - Validate YAML, JSON, and TOML syntax
+  - Check for large files (>1MB)
+  - Detect debug statements
+  - Verify docstrings come first
+
+#### Manual execution
+
+```bash
+# Run hooks on all files
+pre-commit run --all-files
+
+# Run hooks on staged files only
+pre-commit run
+
+# Update hook versions
+pre-commit autoupdate
+```
+
+#### Benefits
+
+- Automatic code formatting before commit
+- Catch issues early (before CI)
+- Consistent code style across contributors
+- Reduced CI failures and faster reviews
 
 ## Performance Targets
 

@@ -2,22 +2,23 @@
 Unit tests for LLM Client and Model Router.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pydantic import BaseModel
+from unittest.mock import Mock, patch
 
+import pytest
 from nocp.llm.client import LLMClient
 from nocp.llm.router import (
-    ModelRouter,
     ModelConfig,
+    ModelRouter,
     ModelTier,
     RequestComplexity,
 )
 from nocp.models.contracts import LLMResponse
+from pydantic import BaseModel
 
 
 class SampleSchema(BaseModel):
     """Sample Pydantic schema for testing."""
+
     name: str
     age: int
 
@@ -27,7 +28,7 @@ class TestLLMClient:
 
     def test_client_initialization(self):
         """Test that client initializes correctly."""
-        with patch('nocp.llm.client.litellm') as mock_litellm:
+        with patch("nocp.llm.client.litellm") as mock_litellm:
             client = LLMClient(
                 default_model="gemini/gemini-2.0-flash-exp",
                 max_retries=3,
@@ -39,16 +40,17 @@ class TestLLMClient:
 
     def test_client_missing_litellm(self):
         """Test that client raises error if litellm not available."""
-        with patch('nocp.llm.client.litellm', side_effect=ImportError):
+        with patch("nocp.llm.client.litellm", side_effect=ImportError):
             with pytest.raises(ImportError) as exc_info:
                 # This import will fail
                 from nocp.llm.client import LLMClient
+
                 LLMClient()
             # The error should mention litellm and installation instructions
             error_message = str(exc_info.value).lower()
             assert "litellm" in error_message or "install" in error_message
 
-    @patch('nocp.llm.client.litellm')
+    @patch("nocp.llm.client.litellm")
     def test_complete_basic(self, mock_litellm):
         """Test basic completion without structured output."""
         # Setup mock response
@@ -76,7 +78,7 @@ class TestLLMClient:
         assert response.output_tokens == 5
         assert response.finish_reason == "stop"
 
-    @patch('nocp.llm.client.litellm')
+    @patch("nocp.llm.client.litellm")
     def test_complete_with_tools(self, mock_litellm):
         """Test completion with tool calling."""
         # Setup mock response with tool calls
@@ -106,7 +108,7 @@ class TestLLMClient:
                     "name": "get_weather",
                     "description": "Get weather",
                     "parameters": {"type": "object"},
-                }
+                },
             }
         ]
 
@@ -120,7 +122,7 @@ class TestLLMClient:
         assert response.tool_calls[0]["name"] == "get_weather"
         assert response.tool_calls[0]["arguments"]["location"] == "NYC"
 
-    @patch('nocp.llm.client.litellm')
+    @patch("nocp.llm.client.litellm")
     def test_count_tokens(self, mock_litellm):
         """Test token counting."""
         mock_litellm.token_counter.return_value = 25
@@ -131,7 +133,7 @@ class TestLLMClient:
         count = client.count_tokens("This is a test message")
         assert count == 25
 
-    @patch('nocp.llm.client.litellm')
+    @patch("nocp.llm.client.litellm")
     def test_count_tokens_fallback(self, mock_litellm):
         """Test token counting with fallback."""
         mock_litellm.token_counter.side_effect = Exception("Token counter failed")
@@ -143,7 +145,7 @@ class TestLLMClient:
         count = client.count_tokens("This is a test")  # 14 chars -> ~3 tokens
         assert count > 0
 
-    @patch('nocp.llm.client.litellm')
+    @patch("nocp.llm.client.litellm")
     def test_fallback_model_on_failure(self, mock_litellm):
         """Test that client falls back to alternative models on failure."""
         # Setup: First call fails, second succeeds
@@ -156,20 +158,12 @@ class TestLLMClient:
         mock_response.usage.completion_tokens = 5
 
         # First call fails, second succeeds
-        mock_litellm.completion.side_effect = [
-            Exception("Primary model failed"),
-            mock_response
-        ]
+        mock_litellm.completion.side_effect = [Exception("Primary model failed"), mock_response]
 
-        client = LLMClient(
-            default_model="primary/model",
-            fallback_models=["fallback/model"]
-        )
+        client = LLMClient(default_model="primary/model", fallback_models=["fallback/model"])
         client.litellm = mock_litellm
 
-        response = client.complete(
-            messages=[{"role": "user", "content": "Test"}]
-        )
+        response = client.complete(messages=[{"role": "user", "content": "Test"}])
 
         # Should succeed with fallback model
         assert isinstance(response, LLMResponse)
@@ -297,7 +291,9 @@ class TestModelRouter:
 
         # The expensive model should cost more (or equal if only one option)
         cheap_cost = cheap_config.input_cost_per_million + cheap_config.output_cost_per_million
-        expensive_cost = expensive_config.input_cost_per_million + expensive_config.output_cost_per_million
+        expensive_cost = (
+            expensive_config.input_cost_per_million + expensive_config.output_cost_per_million
+        )
         assert expensive_cost >= cheap_cost
 
     def test_get_fallback_model(self):
@@ -312,28 +308,32 @@ class TestModelRouter:
         assert fallback == "gemini/gemini-1.5-flash"
 
         # Add a different model
-        router.register_model(ModelConfig(
-            name="custom/test-model",
-            tier=ModelTier.CHEAP,
-            input_cost_per_million=0.1,
-            output_cost_per_million=0.2,
-            max_input_tokens=100_000,
-            max_output_tokens=4_096,
-        ))
+        router.register_model(
+            ModelConfig(
+                name="custom/test-model",
+                tier=ModelTier.CHEAP,
+                input_cost_per_million=0.1,
+                output_cost_per_million=0.2,
+                max_input_tokens=100_000,
+                max_output_tokens=4_096,
+            )
+        )
 
         # Should return first available model (not the preferred gemini-2.0)
         fallback = router._get_fallback_model()
         assert fallback == "custom/test-model"
 
         # Add preferred model
-        router.register_model(ModelConfig(
-            name="gemini/gemini-2.0-flash-exp",
-            tier=ModelTier.CHEAP,
-            input_cost_per_million=0.0,
-            output_cost_per_million=0.0,
-            max_input_tokens=1_000_000,
-            max_output_tokens=8_192,
-        ))
+        router.register_model(
+            ModelConfig(
+                name="gemini/gemini-2.0-flash-exp",
+                tier=ModelTier.CHEAP,
+                input_cost_per_million=0.0,
+                output_cost_per_million=0.0,
+                max_input_tokens=1_000_000,
+                max_output_tokens=8_192,
+            )
+        )
 
         # Should return preferred fallback
         fallback = router._get_fallback_model()

@@ -20,6 +20,8 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
+    "pyyaml>=6.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -45,7 +47,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 100
-target-version = ["py311"]
+target-version = "py311"
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -115,25 +117,26 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "-ra",
-    "-q",
+    "-v",
     "--strict-markers",
-    "--strict-config",
-    "--doctest-modules",
+    "--tb=short",
 ]
 markers = [
-    "unit: Fast unit tests with no external dependencies",
+    "unit: Fast unit tests with no external dependencies (<100ms each)",
     "integration: Integration tests that may call external APIs",
     "e2e: End-to-end workflow tests",
     "performance: Performance benchmarks",
-    "requires_api_key: Requires GEMINI_API_KEY environment variable",
-    "slow: Tests taking >1 second (deselect with '-m \"not slow\"')",
+    "requires_api_key: Tests requiring GEMINI_API_KEY",
+    "slow: Tests taking >1 second",
 ]
 filterwarnings = [
     "default",
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+
+# Coverage can be run separately with:
+# pytest --cov=nocp --cov-report=term-missing --cov-report=html
 
 [tool.coverage.run]
 source = ["src/nocp"]
@@ -164,3 +167,21 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+# NOCP Configuration Defaults
+# Uncomment and customize the settings below to configure project-specific defaults
+# [tool.nocp]
+# # Project-specific NOCP defaults
+# default_compression_threshold = 5000
+# enable_semantic_pruning = true
+# enable_knowledge_distillation = false
+# default_output_format = "toon"
+# log_level = "INFO"
+#
+# # LLM settings
+# litellm_default_model = "gemini/gemini-2.0-flash-exp"
+# litellm_fallback_models = "gemini/gemini-1.5-flash,openai/gpt-4o-mini"
+#
+# # Metrics
+# enable_metrics_logging = true
+# metrics_log_file = ".nocp/metrics.jsonl"

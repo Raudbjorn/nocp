@@ -15,6 +15,7 @@ class OutputFormat(str, Enum):
         COMPACT_JSON: Minified JSON without whitespace
         JSON: Standard formatted JSON with indentation
     """
+
     TOON = "toon"
     COMPACT_JSON = "compact_json"
     JSON = "json"
@@ -30,6 +31,7 @@ class LogLevel(str, Enum):
         ERROR: Error messages for serious problems
         CRITICAL: Critical messages for severe errors
     """
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -46,6 +48,7 @@ class CompressionStrategy(str, Enum):
         HISTORY_COMPACTION: Compress conversation history while preserving context
         NONE: Disable compression (for debugging or specific use cases)
     """
+
     SEMANTIC_PRUNING = "semantic_pruning"
     KNOWLEDGE_DISTILLATION = "knowledge_distillation"
     HISTORY_COMPACTION = "history_compaction"
@@ -62,6 +65,7 @@ class LLMProvider(str, Enum):
         COHERE: Cohere models (cohere/command-r-plus, etc.)
         AZURE: Azure OpenAI Service models (azure/gpt-4, etc.)
     """
+
     GEMINI = "gemini"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"

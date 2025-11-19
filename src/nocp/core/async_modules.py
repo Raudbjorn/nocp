@@ -9,22 +9,19 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
-from ..exceptions import CompressionError, SerializationError
 from ..models.contracts import (
+    CompressionMethod,
     ContextData,
     OptimizedContext,
-    CompressionMethod,
-    ToolResult,
-    ChatMessage,
     SerializationRequest,
     SerializedOutput,
-    SerializationFormat,
     ToolRequest,
 )
+from ..models.enums import OutputFormat
 from ..serializers.toon import TOONEncoder
 
 logger = logging.getLogger(__name__)
@@ -49,7 +46,7 @@ class AsyncContextManager:
         student_model: str = "openai/gpt-4o-mini",
         compression_threshold: int = 10_000,
         target_compression_ratio: float = 0.40,
-        enable_litellm: bool = True
+        enable_litellm: bool = True,
     ):
         """Initialize Async Context Manager."""
         self.student_model = student_model
@@ -62,6 +59,7 @@ class AsyncContextManager:
         if enable_litellm:
             try:
                 import litellm
+
                 self.litellm = litellm
             except ImportError:
                 pass
@@ -88,7 +86,7 @@ class AsyncContextManager:
                 optimized_tokens=original_tokens,
                 compression_ratio=1.0,
                 method_used=CompressionMethod.NONE,
-                compression_time_ms=0.0
+                compression_time_ms=0.0,
             )
 
         # Step 3: Select strategy
@@ -114,7 +112,9 @@ class AsyncContextManager:
                 compressed_text = raw_text
         except Exception as e:
             # Fallback to raw on compression failure
-            logger.warning(f"Compression strategy '{strategy}' failed: {e}. Falling back to raw context.")
+            logger.warning(
+                f"Compression strategy '{strategy}' failed: {e}. Falling back to raw context."
+            )
             compressed_text = raw_text
             strategy = CompressionMethod.NONE
 
@@ -130,7 +130,7 @@ class AsyncContextManager:
             optimized_tokens=compressed_tokens,
             compression_ratio=compression_ratio,
             method_used=strategy,
-            compression_time_ms=compression_time
+            compression_time_ms=compression_time,
         )
 
     def estimate_tokens(self, text: str, model: str = "gpt-4") -> int:
@@ -155,8 +155,7 @@ class AsyncContextManager:
 
         # Check for verbose text
         total_text_tokens = sum(
-            r.token_estimate for r in context.tool_results
-            if isinstance(r.data, str)
+            r.token_estimate for r in context.tool_results if isinstance(r.data, str)
         )
         if total_text_tokens > 5000:
             return CompressionMethod.KNOWLEDGE_DISTILLATION
@@ -176,8 +175,7 @@ class AsyncContextManager:
         """Synchronous semantic pruning logic."""
         pruned_results = []
         target_tokens = int(
-            sum(r.token_estimate for r in context.tool_results) *
-            self.target_compression_ratio
+            sum(r.token_estimate for r in context.tool_results) * self.target_compression_ratio
         )
 
         current_tokens = 0
@@ -191,16 +189,15 @@ class AsyncContextManager:
                     items_to_keep.append(item)
                     current_tokens += item_tokens
 
-                pruned_results.append({
-                    "tool_id": result.tool_id,
-                    "data": items_to_keep,
-                    "note": f"Showing {len(items_to_keep)} of {len(result.data)} items"
-                })
+                pruned_results.append(
+                    {
+                        "tool_id": result.tool_id,
+                        "data": items_to_keep,
+                        "note": f"Showing {len(items_to_keep)} of {len(result.data)} items",
+                    }
+                )
             else:
-                pruned_results.append({
-                    "tool_id": result.tool_id,
-                    "data": result.data
-                })
+                pruned_results.append({"tool_id": result.tool_id, "data": result.data})
 
         if context.transient_context:
             pruned_results.append({"context": context.transient_context})
@@ -227,11 +224,11 @@ class AsyncContextManager:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Summarize the following text concisely while preserving all key information."
+                        "content": "Summarize the following text concisely while preserving all key information.",
                     },
-                    {"role": "user", "content": raw_text}
+                    {"role": "user", "content": raw_text},
                 ],
-                max_tokens=expected_compressed_tokens
+                max_tokens=expected_compressed_tokens,
             )
             return response.choices[0].message.content
         except Exception:
@@ -261,11 +258,11 @@ class AsyncContextManager:
                     messages=[
                         {
                             "role": "system",
-                            "content": "Provide a concise summary of the conversation history."
+                            "content": "Provide a concise summary of the conversation history.",
                         },
-                        {"role": "user", "content": old_text}
+                        {"role": "user", "content": old_text},
                     ],
-                    max_tokens=500
+                    max_tokens=500,
                 )
                 summary = summary_response.choices[0].message.content
             except Exception:
@@ -327,7 +324,7 @@ class AsyncOutputSerializer:
         """
         # Step 1: Determine optimal format
         if request.force_format:
-            format_used = SerializationFormat(request.force_format)
+            format_used = OutputFormat(request.force_format)
         else:
             format_used = self.negotiate_format(request.data)
 
@@ -335,34 +332,27 @@ class AsyncOutputSerializer:
         start_time = time.perf_counter()
 
         try:
-            if format_used == SerializationFormat.TOON:
+            if format_used == OutputFormat.TOON:
                 serialized = await asyncio.to_thread(
                     self.toon_encoder.encode,
                     request.data,
-                    "#" if request.include_length_markers else ""
+                    "#" if request.include_length_markers else "",
                 )
             else:  # COMPACT_JSON
                 serialized = await asyncio.to_thread(
-                    request.data.model_dump_json,
-                    indent=None,
-                    separators=(',', ':')
+                    request.data.model_dump_json, indent=None, separators=(",", ":")
                 )
         except Exception:
             # Fallback to compact JSON on error
             serialized = await asyncio.to_thread(
-                request.data.model_dump_json,
-                indent=None,
-                separators=(',', ':')
+                request.data.model_dump_json, indent=None, separators=(",", ":")
             )
-            format_used = SerializationFormat.COMPACT_JSON
+            format_used = OutputFormat.COMPACT_JSON
 
         serialization_time = (time.perf_counter() - start_time) * 1000
 
         # Step 3: Calculate savings
-        baseline_json = await asyncio.to_thread(
-            request.data.model_dump_json,
-            indent=2
-        )
+        baseline_json = await asyncio.to_thread(request.data.model_dump_json, indent=2)
         original_tokens = len(baseline_json) // 4
         optimized_tokens = len(serialized) // 4
         savings_ratio = 1.0 - (optimized_tokens / original_tokens) if original_tokens > 0 else 0.0
@@ -371,7 +361,7 @@ class AsyncOutputSerializer:
         is_valid = True
         if request.validate_output:
             try:
-                if format_used == SerializationFormat.COMPACT_JSON:
+                if format_used == OutputFormat.COMPACT_JSON:
                     await asyncio.to_thread(json.loads, serialized)
             except Exception:
                 is_valid = False
@@ -384,10 +374,10 @@ class AsyncOutputSerializer:
             savings_ratio=savings_ratio,
             is_valid=is_valid,
             serialization_time_ms=serialization_time,
-            schema_complexity=self._assess_complexity(request.data)
+            schema_complexity=self._assess_complexity(request.data),
         )
 
-    def negotiate_format(self, model: BaseModel) -> SerializationFormat:
+    def negotiate_format(self, model: BaseModel) -> OutputFormat:
         """Analyze model to select optimal format (synchronous)."""
         model_dict = model.model_dump()
 
@@ -395,15 +385,15 @@ class AsyncOutputSerializer:
         for value in model_dict.values():
             if isinstance(value, list) and len(value) > 5:
                 if self._is_uniform_list(value):
-                    return SerializationFormat.TOON
+                    return OutputFormat.TOON
 
         # Check nesting depth
         if self._get_nesting_depth(model_dict) > 3:
-            return SerializationFormat.COMPACT_JSON
+            return OutputFormat.COMPACT_JSON
 
-        return SerializationFormat.COMPACT_JSON
+        return OutputFormat.COMPACT_JSON
 
-    def _is_uniform_list(self, arr: List[Any]) -> bool:
+    def _is_uniform_list(self, arr: list[Any]) -> bool:
         """Check if list is uniform."""
         if not arr or not isinstance(arr[0], dict):
             return False
@@ -418,17 +408,11 @@ class AsyncOutputSerializer:
         if isinstance(obj, dict):
             if not obj:
                 return current_depth
-            return max(
-                self._get_nesting_depth(v, current_depth + 1)
-                for v in obj.values()
-            )
+            return max(self._get_nesting_depth(v, current_depth + 1) for v in obj.values())
         else:  # list
             if not obj:
                 return current_depth
-            return max(
-                self._get_nesting_depth(item, current_depth + 1)
-                for item in obj
-            )
+            return max(self._get_nesting_depth(item, current_depth + 1) for item in obj)
 
     def _assess_complexity(self, model: BaseModel) -> str:
         """Categorize schema complexity."""
@@ -446,7 +430,7 @@ class AsyncOutputSerializer:
         else:
             return "nested"
 
-    def _has_uniform_arrays(self, obj: Dict[str, Any]) -> bool:
+    def _has_uniform_arrays(self, obj: dict[str, Any]) -> bool:
         """Check if object contains uniform arrays."""
         for value in obj.values():
             if isinstance(value, list) and self._is_uniform_list(value):
@@ -479,7 +463,7 @@ class ConcurrentToolExecutor:
         async with self.semaphore:
             return await self.tool_executor.execute_async(request)
 
-    async def execute_many(self, requests: List[ToolRequest]) -> List:
+    async def execute_many(self, requests: list[ToolRequest]) -> list:
         """
         Execute multiple tool requests concurrently.
 
@@ -492,7 +476,7 @@ class ConcurrentToolExecutor:
         tasks = [self.execute_one(req) for req in requests]
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def execute_many_ordered(self, requests: List[ToolRequest]) -> List:
+    async def execute_many_ordered(self, requests: list[ToolRequest]) -> list:
         """
         Execute tools concurrently but return results in order.
 
