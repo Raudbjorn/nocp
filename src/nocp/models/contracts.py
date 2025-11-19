@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .enums import OutputFormat
+
 
 # ============================================================================
 # Act Module (Tool Executor) Contracts
@@ -142,21 +144,14 @@ class OptimizedContext(BaseModel):
 # Articulate Module (Output Serializer) Contracts
 # ============================================================================
 
-class SerializationFormat(str, Enum):
-    """Output format selected."""
-    TOON = "toon"
-    COMPACT_JSON = "compact_json"
-
-
 class SerializationRequest(BaseModel):
     """Input to Articulate.serialize()"""
     # Data to serialize (must be Pydantic model)
     data: BaseModel = Field(..., description="Structured LLM response")
 
     # Format hints
-    force_format: Optional[str] = Field(
+    force_format: Optional[OutputFormat] = Field(
         None,
-        pattern="^(toon|compact_json)$",
         description="Override format negotiation"
     )
 
@@ -175,7 +170,7 @@ class SerializedOutput(BaseModel):
     """Output from Articulate.serialize()"""
     # Serialized data
     serialized_text: str
-    format_used: SerializationFormat
+    format_used: OutputFormat
 
     # Metrics
     original_tokens: int = Field(..., description="If serialized as standard JSON")
