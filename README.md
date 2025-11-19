@@ -88,6 +88,108 @@ pip install -e ".[dev]"
 pip install -e ".[litellm]"
 ```
 
+## Unified Build System (Recommended)
+
+NOCP includes a comprehensive, intelligent build script (`build.sh`) that automatically detects package managers (uv, poetry, pip) and provides a unified interface for all development operations with git/GitHub status monitoring.
+
+### Quick Start
+
+```bash
+# One-time setup (auto-detects uv, poetry, or pip)
+./build.sh setup
+
+# Build and validate
+./build.sh build
+
+# Run tests with coverage
+./build.sh test
+
+# Complete QA pipeline
+./build.sh format && ./build.sh lint && ./build.sh test
+```
+
+### Available Commands
+
+**Setup**
+```bash
+./build.sh setup              # Install dependencies (auto-detects package manager)
+./build.sh setup-litellm      # Install with optional LiteLLM support
+```
+
+**Build & Quality**
+```bash
+./build.sh build              # Build and validate (type checks + linting)
+./build.sh lint               # Run linting (ruff + mypy)
+./build.sh format             # Format code (ruff format)
+```
+
+**Testing**
+```bash
+./build.sh test               # Run all tests with coverage
+./build.sh test-unit          # Run unit tests only
+./build.sh test-integration   # Run integration tests only
+./build.sh test-e2e           # Run end-to-end tests only
+./build.sh benchmark          # Run performance benchmarks
+```
+
+**Development**
+```bash
+./build.sh example basic_usage    # Run an example
+./build.sh examples               # List available examples
+./build.sh docs                   # Generate API documentation
+```
+
+**Utilities**
+```bash
+./build.sh status             # Detailed git/GitHub repository status
+./build.sh clean              # Remove all build artifacts
+./build.sh clean-cache        # Remove only cache directories
+./build.sh help               # Show full help
+```
+
+### Git & GitHub Integration
+
+The build script provides intelligent repository awareness:
+
+- **Uncommitted Changes**: Alerts when >5 files, warns at >20
+- **Branch Divergence**: Shows commits behind/ahead of main/master
+- **Merge Conflicts**: Detects potential conflicts before merging
+- **Pull Requests**: Shows open PRs, draft status, and merge conflicts (via `gh` CLI)
+- **CI/CD Status**: Displays recent workflow failures
+- **Review Requests**: Shows PRs awaiting your review
+
+Example status output:
+```bash
+./build.sh status
+# ⚠️ Git Status Notifications:
+#   📝 You have 8 uncommitted changes
+#   📤 You have 2 unpushed commits on branch 'feature/new-compression'
+#   🔀 There are 3 open pull request(s) in Raudbjorn/nocp
+#     • #4: Add multi-cloud routing (@svnbjrn)
+#     • #5: Comprehensive test coverage (@svnbjrn)
+```
+
+### Package Manager Detection
+
+The build script automatically detects and uses the best available Python package manager:
+
+1. **uv** (fastest, recommended) - Prioritized if available
+2. **poetry** - Used if uv not found
+3. **pip + venv** - Fallback for standard Python installations
+
+No configuration needed - it just works!
+
+### Environment Variables
+
+```bash
+# Install with LiteLLM
+INSTALL_LITELLM=true ./build.sh setup
+
+# Set API key for examples
+export GEMINI_API_KEY='your-key-here'
+./build.sh example basic_usage
+```
+
 ## Configuration
 
 Create a `.env` file in the project root:
