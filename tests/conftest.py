@@ -6,7 +6,6 @@ import pytest
 import tempfile
 from pathlib import Path
 from datetime import datetime
-import json
 
 from nocp.core import ToolExecutor, ContextManager, OutputSerializer
 from nocp.models.contracts import ToolResult, ToolType, ContextData
@@ -60,7 +59,7 @@ def sample_tool_result():
         data={"result": "test data"},
         error=None,
         execution_time_ms=10.0,
-        timestamp=datetime.now(),
+        timestamp=datetime(2024, 1, 1, 12, 0, 0),
         token_estimate=50
     )
 
@@ -170,8 +169,8 @@ def sample_context_data():
                 success=True,
                 data={"result": "test"},
                 error=None,
-                execution_time_ms=100,
-                timestamp=datetime.now(),
+                execution_time_ms=100.0,
+                timestamp=datetime(2024, 1, 1, 12, 0, 0),
                 token_estimate=50
             )
         ],
