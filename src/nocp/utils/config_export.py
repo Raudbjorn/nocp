@@ -1,4 +1,7 @@
-"""Configuration export/import utilities"""
+"""
+Utilities for exporting and importing configuration files in YAML format, with support for including or excluding secrets.
+Also provides functionality to print differences between two configuration objects.
+"""
 import yaml
 from pathlib import Path
 from typing import Optional
