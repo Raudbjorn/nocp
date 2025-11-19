@@ -564,16 +564,19 @@ run_benchmarks() {
     fi
 
     print_info "Running performance benchmarks..."
-    if ! run_python_cmd "python -m pytest benchmarks/ -v --benchmark-only"; then
-        # pytest exits with 5 if no tests are found
-        if [ $? -eq 5 ]; then
+    run_python_cmd "python -m pytest benchmarks/ -v --benchmark-only"
+    pytest_exit_code=$?
+    # pytest exits with 5 if no tests are found
+    if [ $pytest_exit_code -ne 0 ]; then
+        if [ $pytest_exit_code -eq 5 ]; then
             print_warning "No benchmarks found"
         else
             print_error "Benchmarks failed"
             exit 1
         fi
+    else
+        print_success "Benchmarks completed"
     fi
-    print_success "Benchmarks completed"
 }
 
 # Documentation
