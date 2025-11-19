@@ -6,7 +6,6 @@ Implements semantic pruning, knowledge distillation, and history compaction.
 """
 
 import json
-import logging
 import time
 from typing import List, Optional
 
@@ -18,8 +17,7 @@ from ..models.contracts import (
     ToolResult,
     ChatMessage,
 )
-
-logger = logging.getLogger(__name__)
+from ..utils.logging import assess_logger
 
 
 class ContextManager:
@@ -70,7 +68,7 @@ class ContextManager:
                 import litellm
                 self.litellm = litellm
             except ImportError:
-                logger.warning("litellm not available. Compression features limited.")
+                assess_logger.logger.warning("litellm not available. Compression features limited.")
 
     def optimize(self, context: ContextData) -> OptimizedContext:
         """
@@ -90,12 +88,18 @@ class ContextManager:
         Returns:
             OptimizedContext with compressed text and metrics
         """
+        assess_logger.log_operation_start("context_optimization")
+
         # Step 1: Count original tokens
         raw_text = self._context_to_text(context)
         original_tokens = self.estimate_tokens(raw_text)
 
         # Step 2: Check if compression warranted
         if original_tokens < self.compression_threshold:
+            assess_logger.log_operation_complete(
+                "context_optimization",
+                details={"method": "NONE", "original_tokens": original_tokens, "reason": "below_threshold"}
+            )
             return OptimizedContext(
                 optimized_text=raw_text,
                 original_tokens=original_tokens,
@@ -128,7 +132,7 @@ class ContextManager:
                 compressed_text = raw_text
         except Exception as e:
             # Fallback to raw on compression failure
-            logger.warning(f"Compression failed ({e}), using raw context")
+            assess_logger.logger.warning(f"Compression failed ({e}), using raw context")
             compressed_text = raw_text
             strategy = CompressionMethod.NONE
 
@@ -137,6 +141,17 @@ class ContextManager:
         # Step 5: Count compressed tokens
         compressed_tokens = self.estimate_tokens(compressed_text)
         compression_ratio = compressed_tokens / original_tokens if original_tokens > 0 else 1.0
+
+        assess_logger.log_operation_complete(
+            "context_optimization",
+            duration_ms=compression_time,
+            details={
+                "method": strategy.value,
+                "original_tokens": original_tokens,
+                "compressed_tokens": compressed_tokens,
+                "compression_ratio": round(compression_ratio, 3)
+            }
+        )
 
         return OptimizedContext(
             optimized_text=compressed_text,
@@ -172,7 +187,7 @@ class ContextManager:
                 return tokens
             except Exception as e:
                 # Log the error but fall back gracefully
-                logger.warning(f"LiteLLM token counting failed for {target_model}: {e}")
+                assess_logger.logger.warning(f"LiteLLM token counting failed for {target_model}: {e}")
 
         # Fallback: rough estimate (1 token ≈ 4 chars)
         # This should be within ±20% accuracy for most text
@@ -389,7 +404,7 @@ class ContextManager:
 
         # Only proceed if savings are positive (compression is beneficial)
         if potential_savings <= 0:
-            logger.warning(
+            assess_logger.logger.warning(
                 f"Compression not cost-effective. "
                 f"Raw: {raw_tokens}, Compressed: {expected_compressed_tokens}, "
                 f"Overhead: {compression_overhead}, Savings: {potential_savings}"
@@ -419,16 +434,17 @@ class ContextManager:
             actual_compression_ratio = summary_tokens / raw_tokens if raw_tokens > 0 else 1.0
 
             # Log compression metrics
-            logger.info(
-                f"Knowledge Distillation: {raw_tokens} -> {summary_tokens} tokens "
-                f"({actual_compression_ratio:.1%} ratio)"
+            assess_logger.log_metric(
+                "compression_ratio",
+                actual_compression_ratio,
+                "ratio"
             )
 
             return summary
 
         except Exception as e:
             # Fallback to raw if summarization fails
-            logger.warning(f"Summarization failed ({e}), using raw text")
+            assess_logger.logger.warning(f"Summarization failed ({e}), using raw text")
             return raw_text
 
     def _history_compaction(self, context: ContextData) -> str:

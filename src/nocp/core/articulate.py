@@ -18,6 +18,7 @@ from ..models.contracts import (
     SerializationFormat,
 )
 from ..serializers.toon import TOONEncoder
+from ..utils.logging import articulate_logger
 
 
 class OutputSerializer:
@@ -48,6 +49,8 @@ class OutputSerializer:
         Returns:
             SerializedOutput with optimized serialization and metrics
         """
+        articulate_logger.log_operation_start("output_serialization")
+
         # Step 1: Determine optimal format
         if request.force_format:
             format_used = SerializationFormat(request.force_format)
@@ -70,7 +73,7 @@ class OutputSerializer:
                 )
         except Exception as e:
             # Fallback to compact JSON on error
-            print(f"Warning: Serialization failed ({e}), falling back to compact JSON")
+            articulate_logger.logger.warning(f"Serialization failed ({e}), falling back to compact JSON")
             serialized = request.data.model_dump_json(
                 indent=None,
                 separators=(',', ':')
@@ -95,6 +98,18 @@ class OutputSerializer:
                 # TOON validation skipped in MVP (would need full decoder)
             except Exception:
                 is_valid = False
+
+        articulate_logger.log_operation_complete(
+            "output_serialization",
+            duration_ms=serialization_time,
+            details={
+                "format": format_used.value,
+                "original_tokens": original_tokens,
+                "optimized_tokens": optimized_tokens,
+                "savings_ratio": round(savings_ratio, 3),
+                "is_valid": is_valid
+            }
+        )
 
         return SerializedOutput(
             serialized_text=serialized,
