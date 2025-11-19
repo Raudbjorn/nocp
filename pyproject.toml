@@ -20,6 +20,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -43,16 +44,59 @@ litellm = [
 requires = ["setuptools>=68.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-line-length = 100
-target-version = ['py310']
-
 [tool.ruff]
 line-length = 100
+target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "SIM", # flake8-simplify
+    "S",   # flake8-bandit
+]
+ignore = [
+    "E501",  # line too long (handled by Black)
+    "B008",  # Do not perform function calls in argument defaults (typer uses this pattern)
+    "B007",  # Loop control variable not used
+    "SIM102",  # Allow nested if statements for readability
+    "SIM118",  # Allow .keys() for readability
+    "B904",  # Allow raise without from in except blocks
+    "S110",  # Allow try-except-pass
+    "S112",  # Allow try-except-continue
+    "C414",  # Allow unnecessary list() calls
+    "F841",  # Allow unused local variables (may be used for debugging)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "E402"]  # Allow assert and imports not at top in tests
+"src/nocp/cli.py" = ["S603"]  # subprocess calls are intentional in CLI
+"src/nocp/bootstrap.py" = ["S603"]  # subprocess calls for uv installation
+"tests/run_tests.py" = ["S603"]  # subprocess calls for running tests
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
 
 [tool.mypy]
 python_version = "3.10"
@@ -63,3 +107,87 @@ ignore_missing_imports = true
 check_untyped_defs = false
 no_implicit_optional = false
 warn_no_return = false
+
+[[tool.mypy.overrides]]
+module = [
+    "google.generativeai.*",
+    "litellm.*",
+    "structlog.*",
+    "tenacity.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "-q",
+    "--strict-markers",
+    "--strict-config",
+    "--doctest-modules",
+]
+markers = [
+    "unit: Fast unit tests with no external dependencies",
+    "integration: Integration tests that may call external APIs",
+    "e2e: End-to-end workflow tests",
+    "performance: Performance benchmarks",
+    "requires_api_key: Requires GEMINI_API_KEY environment variable",
+    "slow: Tests taking >1 second (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+    "default",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src/nocp"]
+omit = [
+    "*/__init__.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == \"__main__\":",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+skip_empty = true
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# NOCP Configuration Defaults
+# Uncomment and customize the settings below to configure project-specific defaults
+# [tool.nocp]
+# # Project-specific NOCP defaults
+# default_compression_threshold = 5000
+# enable_semantic_pruning = true
+# enable_knowledge_distillation = false
+# default_output_format = "toon"
+# log_level = "INFO"
+#
+# # LLM settings
+# litellm_default_model = "gemini/gemini-2.0-flash-exp"
+# litellm_fallback_models = "gemini/gemini-1.5-flash,openai/gpt-4o-mini"
+#
+# # Metrics
+# enable_metrics_logging = true
+# metrics_log_file = ".nocp/metrics.jsonl"

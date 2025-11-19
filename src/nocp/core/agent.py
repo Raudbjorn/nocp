@@ -8,12 +8,13 @@ to deliver optimized LLM interactions with token efficiency as the primary goal.
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 
 from ..core.config import get_config
 from ..llm.client import LLMClient
 from ..llm.router import ModelRouter
 from ..models.context import PersistentContext, TransientContext
+from ..models.enums import OutputFormat
 from ..models.schemas import (
     AgentRequest,
     AgentResponse,
@@ -25,7 +26,7 @@ from ..modules.context_manager import ContextManager
 from ..modules.output_serializer import OutputSerializer
 from ..modules.router import RequestRouter
 from ..modules.tool_executor import ToolExecutor
-from ..utils.logging import get_logger, get_metrics_logger, log_metrics
+from ..utils.logging import agent_logger, get_logger, get_metrics_logger, log_metrics
 from ..utils.token_counter import TokenCounter
 
 
@@ -63,7 +64,6 @@ class HighEfficiencyProxyAgent:
         self.token_counter = TokenCounter(model_name)
 
         # Initialize LLM client with LiteLLM
-        self.llm_client: LLMClient | None
         if self.config.enable_litellm:
             # Use LiteLLM for multi-provider support
             fallback_models = None
@@ -96,7 +96,7 @@ class HighEfficiencyProxyAgent:
             genai.configure(api_key=api_key)
             self.model_name = model_name or self.config.gemini_model
             self.model = genai.GenerativeModel(self.model_name)
-            self.llm_client = None
+            self.llm_client = None  # type: ignore[assignment]
 
         # Initialize model router for intelligent model selection
         self.model_router = ModelRouter()
@@ -132,7 +132,7 @@ class HighEfficiencyProxyAgent:
     def process_request(
         self,
         request: AgentRequest,
-        return_format: Literal["toon", "compact_json", "json"] | None = None,
+        return_format: OutputFormat | None = None,
     ) -> tuple[str, ContextMetrics]:
         """
         Process an agent request end-to-end.
@@ -154,6 +154,11 @@ class HighEfficiencyProxyAgent:
         """
         start_time = time.perf_counter()
         transaction_id = str(uuid.uuid4())
+
+        agent_logger.log_operation_start(
+            "agent_request",
+            {"transaction_id": transaction_id, "query_preview": request.query[:100]},
+        )
 
         self.logger.info(
             "processing_request",
@@ -247,6 +252,18 @@ class HighEfficiencyProxyAgent:
                 compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
+            agent_logger.log_operation_complete(
+                "agent_request",
+                duration_ms=total_latency_ms,
+                details={
+                    "transaction_id": transaction_id,
+                    "input_token_savings": input_token_savings,
+                    "output_token_savings": token_savings,
+                    "compression_ratio": round(metrics.input_compression_ratio, 3),
+                    "tools_used": len(tools_used),
+                },
+            )
+
             return serialized_output, metrics
 
         except Exception as e:
@@ -255,6 +272,7 @@ class HighEfficiencyProxyAgent:
                 transaction_id=transaction_id,
                 error=str(e),
             )
+            agent_logger.log_operation_error("agent_request", e, {"transaction_id": transaction_id})
             raise
 
     def _handle_tool_execution(
@@ -315,6 +333,7 @@ class HighEfficiencyProxyAgent:
         Returns:
             AgentResponse from the LLM
         """
+        agent_logger.log_operation_start("agent_loop")
         # Compact history if needed
         history_compression = self.context_manager.compact_conversation_history(transient_ctx)
         if history_compression:
@@ -426,6 +445,11 @@ class HighEfficiencyProxyAgent:
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
+        agent_logger.log_operation_complete(
+            "agent_loop",
+            details={"tools_used": len(tools_used), "compressions": len(compression_operations)},
+        )
+
         return AgentResponse(
             answer=response_text,
             tool_results_summary=[f"Used tool: {t}" for t in tools_used],
@@ -436,7 +460,7 @@ class HighEfficiencyProxyAgent:
         self,
         transient_ctx: TransientContext,
         persistent_ctx: PersistentContext,
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, str]]:
         """
         Format context into messages for LLM API (LiteLLM or Gemini).
 
@@ -473,7 +497,7 @@ class HighEfficiencyProxyAgent:
                 }
             )
 
-        return messages
+        return messages  # type: ignore[return-value]
 
     def get_metrics_summary(self, window_size: int = 100) -> dict[str, Any]:
         """
