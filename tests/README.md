@@ -164,15 +164,22 @@ The test suite is designed for efficient CI/CD:
 
 ## Coverage
 
-Generate coverage reports:
+Coverage is optional and not enabled by default for faster development iterations.
+
+Generate coverage reports when needed:
 
 ```bash
-# Run with coverage
-pytest --cov=nocp --cov-report=html
+# Run with coverage (terminal + HTML report)
+pytest --cov=nocp --cov-report=term-missing --cov-report=html
 
-# View coverage report
+# Run specific category with coverage
+pytest tests/unit/ --cov=nocp --cov-report=html
+
+# View HTML coverage report
 open htmlcov/index.html
 ```
+
+**Note**: Coverage is recommended for CI/CD pipelines and before releases, but not required for quick development test runs.
 
 ## Writing Tests
 

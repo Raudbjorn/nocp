@@ -15,13 +15,9 @@ import os
 @pytest.mark.e2e
 @pytest.mark.slow
 @pytest.mark.requires_api_key
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="GEMINI_API_KEY not set")
 class TestGeminiIntegration:
     """Tests for real Gemini API integration."""
-
-    def test_requires_api_key(self):
-        """Skip if GEMINI_API_KEY is not set."""
-        if not os.getenv("GEMINI_API_KEY"):
-            pytest.skip("GEMINI_API_KEY not set")
 
     def test_gemini_integration_placeholder(self):
         """Placeholder test - implement Gemini integration tests."""

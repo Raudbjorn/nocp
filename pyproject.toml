@@ -67,9 +67,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=nocp",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
 markers = [
     "unit: Fast unit tests with no external dependencies (<100ms each)",
@@ -82,3 +79,6 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+# Coverage can be run separately with:
+# pytest --cov=nocp --cov-report=term-missing --cov-report=html

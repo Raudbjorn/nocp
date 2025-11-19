@@ -19,7 +19,6 @@ Usage:
 
 import sys
 import subprocess
-from pathlib import Path
 
 
 def run_pytest(args: list[str]) -> int:
@@ -43,7 +42,7 @@ def main():
 
     # Category-specific test commands
     commands = {
-        "unit": ["tests/unit/", "-m", "unit or not (integration or e2e or performance)"],
+        "unit": ["tests/unit/", "-m", "unit"],
         "integration": ["tests/integration/", "-m", "integration"],
         "e2e": ["tests/e2e/", "-m", "e2e", "--run-slow"],
         "performance": ["tests/performance/", "-m", "performance", "--run-slow"],

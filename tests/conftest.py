@@ -9,31 +9,13 @@ from nocp.core import ToolExecutor, ContextManager, OutputSerializer
 from nocp.models.contracts import ToolResult, ToolType
 
 
-def pytest_configure(config):
-    """Register custom markers for test categorization."""
-    config.addinivalue_line(
-        "markers",
-        "unit: Fast unit tests with no external dependencies (<100ms each)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: Integration tests that may call external APIs"
-    )
-    config.addinivalue_line(
-        "markers",
-        "e2e: End-to-end workflow tests"
-    )
-    config.addinivalue_line(
-        "markers",
-        "performance: Performance benchmarks"
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_api_key: Tests requiring GEMINI_API_KEY"
-    )
-    config.addinivalue_line(
-        "markers",
-        "slow: Tests taking >1 second"
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--run-slow",
+        action="store_true",
+        default=False,
+        help="Run slow tests (>1 second)"
     )
 
 
@@ -44,16 +26,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
-
-
-def pytest_addoption(parser):
-    """Add custom command line options."""
-    parser.addoption(
-        "--run-slow",
-        action="store_true",
-        default=False,
-        help="Run slow tests (>1 second)"
-    )
 
 
 @pytest.fixture
