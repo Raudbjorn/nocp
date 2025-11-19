@@ -352,11 +352,11 @@ agent = HighEfficiencyProxyAgent(
     }
 )
 
-# For distributed systems: use Redis
+# For distributed systems: use ChromaDB
 agent = HighEfficiencyProxyAgent(
     config={
-        "cache_backend": "redis",
-        "redis_url": "redis://localhost:6379/0"
+        "cache_backend": "chromadb",
+        "chromadb_persist_dir": "./chroma_cache"
     }
 )
 ```
@@ -477,7 +477,7 @@ spec:
 
 **Horizontal Scaling:**
 - Stateless design allows multiple replicas
-- Use Redis for shared caching layer
+- Use ChromaDB for shared caching layer
 - Load balancer distributes requests
 
 **Vertical Scaling:**
@@ -654,7 +654,7 @@ Maintain `CHANGELOG.md`:
 
 ### Added
 - Conversation history compaction
-- Redis caching support
+- ChromaDB caching support
 - Async tool execution
 
 ### Fixed

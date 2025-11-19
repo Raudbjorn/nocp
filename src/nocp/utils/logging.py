@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ..core.config import get_config
+from ..models.enums import LogLevel
 from ..models.schemas import ContextMetrics
 
 
@@ -31,11 +32,11 @@ def setup_logging() -> None:
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer() if config.log_level == "DEBUG"
+            structlog.processors.JSONRenderer() if config.log_level == LogLevel.DEBUG
             else structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog.stdlib, config.log_level.upper(), structlog.INFO)
+            getattr(structlog.stdlib, config.log_level.value, structlog.INFO)
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
