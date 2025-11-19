@@ -14,9 +14,10 @@ Configuration precedence (highest to lowest):
 
 import os
 import sys
+import logging
 from typing import Optional, Dict, Any, List
 from pathlib import Path
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
 
 # Import tomllib for Python 3.11+, tomli for Python 3.10
@@ -29,6 +30,8 @@ else:
         tomllib = None  # type: ignore
 
 from ..models.enums import OutputFormat, LogLevel, CompressionStrategy, LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 def load_pyproject_defaults() -> Dict[str, Any]:
@@ -63,11 +66,8 @@ def load_pyproject_defaults() -> Dict[str, Any]:
         # Extract [tool.nocp] section
         tool_config = data.get("tool", {}).get("nocp", {})
 
-        # Log the number of settings loaded (use print for now to avoid circular import)
+        # Log the number of settings loaded
         if tool_config:
-            # We'll use structlog later, for now just do basic logging
-            import logging
-            logger = logging.getLogger(__name__)
             logger.debug(f"Loaded {len(tool_config)} settings from pyproject.toml")
 
         return tool_config
@@ -75,14 +75,10 @@ def load_pyproject_defaults() -> Dict[str, Any]:
     except (OSError, AttributeError) as e:
         # OSError: file I/O errors
         # AttributeError: tomllib.TOMLDecodeError doesn't exist if tomllib is None
-        import logging
-        logger = logging.getLogger(__name__)
         logger.warning(f"Could not load pyproject.toml: {e}")
         return {}
     except Exception as e:
         # Catch tomllib.TOMLDecodeError and any other parsing errors
-        import logging
-        logger = logging.getLogger(__name__)
         logger.warning(f"Could not parse pyproject.toml: {e}")
         return {}
 
@@ -214,6 +210,20 @@ class ProxyConfig(BaseSettings):
         description="Threshold for drift detection warning (negative delta trend)"
     )
 
+    # Log Rotation Configuration
+    log_file: Optional[Path] = Field(
+        default=None,
+        description="Path to main application log file (set to None to disable file logging)"
+    )
+    log_max_bytes: int = Field(
+        default=10 * 1024 * 1024,  # 10MB
+        description="Maximum log file size before rotation"
+    )
+    log_backup_count: int = Field(
+        default=5,
+        description="Number of backup log files to keep"
+    )
+
     # Multi-Cloud Configuration (LiteLLM)
     enable_litellm: bool = Field(
         default=True,
@@ -282,6 +292,79 @@ class ProxyConfig(BaseSettings):
             file_secret_settings,
         )
 
+    @field_validator('default_compression_threshold')
+    @classmethod
+    def validate_compression_threshold(cls, v: int) -> int:
+        """Ensure compression threshold is reasonable"""
+        if v < 1000:
+            raise ValueError(
+                f"default_compression_threshold ({v}) is too low. "
+                "Minimum recommended: 1000 tokens"
+            )
+        if v > 100_000:
+            logger.warning(
+                f"Very high default_compression_threshold ({v:,}). "
+                "Compression may rarely trigger."
+            )
+        return v
+
+    @field_validator('compression_cost_multiplier')
+    @classmethod
+    def validate_compression_cost_multiplier(cls, v: float) -> float:
+        """Ensure compression cost multiplier is valid"""
+        if v < 1.0:
+            raise ValueError(
+                f"compression_cost_multiplier must be >= 1.0, got {v}. "
+                "Values < 1.0 would accept compression even when it increases cost."
+            )
+        if v > 10.0:
+            logger.warning(
+                f"Very high compression_cost_multiplier ({v}). "
+                "Compression may be rejected even when beneficial."
+            )
+        return v
+
+    @field_validator('toon_fallback_threshold')
+    @classmethod
+    def validate_toon_threshold(cls, v: float) -> float:
+        """Validate TOON fallback threshold"""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(
+                f"toon_fallback_threshold must be 0.0-1.0, got {v}"
+            )
+        return v
+
+    @field_validator('student_summarizer_max_tokens')
+    @classmethod
+    def validate_student_max_tokens(cls, v: int) -> int:
+        """Ensure student summarizer max tokens is reasonable"""
+        if v < 100:
+            raise ValueError(
+                f"student_summarizer_max_tokens ({v}) is too low. "
+                "Minimum recommended: 100 tokens"
+            )
+        if v > 10_000:
+            logger.warning(
+                f"Very high student_summarizer_max_tokens ({v:,}). "
+                "This may reduce compression effectiveness."
+            )
+        return v
+
+    @field_validator('max_input_tokens', 'max_output_tokens')
+    @classmethod
+    def validate_token_limits(cls, v: int) -> int:
+        """Ensure token limits are positive and reasonable"""
+        if v <= 0:
+            raise ValueError(
+                f"Token limit must be positive, got {v}"
+            )
+        if v > 10_000_000:
+            logger.warning(
+                f"Very high token limit ({v:,}). "
+                "Ensure this matches your model's capabilities."
+            )
+        return v
+
     @model_validator(mode='after')
     def sync_compression_strategies(self) -> 'ProxyConfig':
         """
@@ -318,6 +401,35 @@ class ProxyConfig(BaseSettings):
 
         # Update the strategies list (sorted for deterministic behavior)
         self.compression_strategies = sorted(list(strategies), key=lambda s: s.value)
+        return self
+
+    @model_validator(mode='after')
+    def validate_cross_field_constraints(self) -> 'ProxyConfig':
+        """Cross-field validation of configuration constraints"""
+        # Check if max_output_tokens exceeds max_input_tokens
+        if self.max_output_tokens > self.max_input_tokens:
+            logger.warning(
+                f"max_output_tokens ({self.max_output_tokens:,}) > "
+                f"max_input_tokens ({self.max_input_tokens:,}). "
+                "This may cause issues with some models."
+            )
+
+        # Check if compression threshold exceeds max input tokens
+        if self.default_compression_threshold > self.max_input_tokens:
+            raise ValueError(
+                f"default_compression_threshold ({self.default_compression_threshold:,}) "
+                f"exceeds max_input_tokens ({self.max_input_tokens:,}). "
+                "Compression would never trigger."
+            )
+
+        # Check if student summarizer output is reasonable compared to compression threshold
+        if self.student_summarizer_max_tokens > self.default_compression_threshold:
+            logger.warning(
+                f"student_summarizer_max_tokens ({self.student_summarizer_max_tokens:,}) > "
+                f"default_compression_threshold ({self.default_compression_threshold:,}). "
+                "Student summarizer may produce outputs larger than compression trigger."
+            )
+
         return self
 
     def is_strategy_enabled(self, strategy: CompressionStrategy) -> bool:
@@ -380,13 +492,10 @@ class ProxyConfig(BaseSettings):
         return 0.0
 
     def ensure_log_directory(self) -> None:
-        """Ensure the metrics log directory exists."""
-        if (
-            self.metrics_log_file is not None
-            and isinstance(self.metrics_log_file, Path)
-            and self.metrics_log_file.parent is not None
-        ):
-            self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
+        """Ensure the log directories exist."""
+        for log_path in [self.metrics_log_file, self.log_file]:
+            if log_path and log_path.parent:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 # Global configuration instance
