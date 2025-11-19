@@ -9,10 +9,18 @@ Generates:
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
 from dataclasses import asdict
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 def generate_ascii_bar_chart(
@@ -107,8 +115,8 @@ class ReportGenerator:
                 with open(result_file, 'r') as f:
                     result = json.load(f)
                     results.append(result)
-            except Exception as e:
-                print(f"Failed to load {result_file}: {e}")
+            except (json.JSONDecodeError, IOError, OSError) as e:
+                logger.warning(f"Failed to load or parse {result_file}: {e}")
 
         return results
 
@@ -458,7 +466,7 @@ class ReportGenerator:
         with open(output_path, 'w') as f:
             f.write(md)
 
-        print(f"Performance report generated: {output_path}")
+        logger.info(f"Performance report generated: {output_path}")
 
         return str(output_path)
 

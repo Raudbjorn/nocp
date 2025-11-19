@@ -82,7 +82,7 @@ class PersistenceManager:
 
             return True
 
-        except Exception as e:
+        except (IOError, OSError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_save_persistent_context",
                 session_id=context.session_id,
@@ -136,7 +136,7 @@ class PersistenceManager:
 
             return context
 
-        except Exception as e:
+        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_load_persistent_context",
                 session_id=session_id,
@@ -233,7 +233,7 @@ class PersistenceManager:
             self.logger.info("session_deleted", session_id=session_id)
             return True
 
-        except Exception as e:
+        except (IOError, OSError) as e:
             self.logger.error(
                 "failed_to_delete_session",
                 session_id=session_id,
@@ -267,7 +267,7 @@ class PersistenceManager:
 
             return sorted(sessions)
 
-        except Exception as e:
+        except (IOError, OSError) as e:
             self.logger.error("failed_to_list_sessions", error=str(e))
             return []
 
@@ -306,7 +306,7 @@ class PersistenceManager:
 
             return True
 
-        except Exception as e:
+        except (IOError, OSError, TypeError, ValueError) as e:
             self.logger.error(
                 "failed_to_save_snapshot",
                 session_id=session_id,

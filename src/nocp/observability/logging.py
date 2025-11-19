@@ -62,7 +62,7 @@ class TransactionLogger:
                 total_savings=transaction.total_token_savings,
             )
 
-        except Exception as e:
+        except (IOError, OSError, TypeError) as e:
             self.logger.error(
                 "failed_to_log_transaction",
                 transaction_id=transaction.transaction_id,
@@ -116,7 +116,7 @@ class TransactionLogger:
 
             return transactions
 
-        except Exception as e:
+        except (IOError, OSError, json.JSONDecodeError, ValueError) as e:
             self.logger.error("failed_to_load_transactions", error=str(e))
             return []
 
@@ -293,7 +293,7 @@ class MetricsCollector:
 
             self.logger.info("metrics_exported", output_file=output_file)
 
-        except Exception as e:
+        except (IOError, OSError, TypeError) as e:
             self.logger.error("failed_to_export_metrics", error=str(e))
 
 

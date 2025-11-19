@@ -182,12 +182,14 @@ class BenchmarkRunner:
         # For benchmarking, we use the output_data directly
         if isinstance(output_data, dict):
             from pydantic import BaseModel, create_model
+            from typing import Any
 
             # Create dynamic model
+            # Using Any for field types to handle complex nested structures
             DynamicModel = create_model(
                 'DynamicResponse',
                 __base__=BaseModel,
-                **{k: (type(v), v) for k, v in output_data.items()}
+                **{k: (Any, v) for k, v in output_data.items()}
             )
             serialization_request = SerializationRequest(data=DynamicModel(**output_data))
             serialized = self.output_serializer.serialize(serialization_request)
@@ -272,7 +274,10 @@ class BenchmarkRunner:
             if baseline["cost_usd"] > 0 else 0
         )
 
-        latency_overhead_ratio = optimized["latency_ms"] / baseline["latency_ms"]
+        latency_overhead_ratio = (
+            optimized["latency_ms"] / baseline["latency_ms"]
+            if baseline["latency_ms"] > 0 else float('inf')
+        )
 
         # Check success criteria
         result = BenchmarkResult(
@@ -281,11 +286,17 @@ class BenchmarkRunner:
             dataset_size=dataset_size,
             raw_input_tokens=baseline["input_tokens"],
             optimized_input_tokens=optimized["optimized_input_tokens"],
-            input_compression_ratio=optimized["optimized_input_tokens"] / baseline["input_tokens"],
+            input_compression_ratio=(
+                optimized["optimized_input_tokens"] / baseline["input_tokens"]
+                if baseline["input_tokens"] > 0 else 0.0
+            ),
             input_reduction_pct=input_reduction_pct,
             raw_output_tokens=baseline["output_tokens"],
             optimized_output_tokens=optimized["optimized_output_tokens"],
-            output_compression_ratio=optimized["optimized_output_tokens"] / baseline["output_tokens"],
+            output_compression_ratio=(
+                optimized["optimized_output_tokens"] / baseline["output_tokens"]
+                if baseline["output_tokens"] > 0 else 0.0
+            ),
             output_reduction_pct=output_reduction_pct,
             baseline_latency_ms=baseline["latency_ms"],
             optimized_latency_ms=optimized["latency_ms"],

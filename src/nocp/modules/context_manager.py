@@ -10,7 +10,7 @@ This is the critical component that enforces the dynamic compression policy
 and Cost-of-Compression Calculus.
 """
 
-from typing import List, Optional, Literal, TYPE_CHECKING
+from typing import List, Optional, Literal
 import google.generativeai as genai
 
 from ..models.schemas import ToolExecutionResult, CompressionResult
@@ -18,9 +18,6 @@ from ..models.context import TransientContext, ConversationMessage, PersistentCo
 from ..core.config import get_config
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
-
-if TYPE_CHECKING:
-    from ..models.context import PersistentContext
 
 
 class ContextManager:
@@ -290,7 +287,8 @@ Provide a structured summary with:
 
             return summary, compression_cost
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
             self.logger.error(
                 "knowledge_distillation_failed",
                 error=str(e),
@@ -338,7 +336,8 @@ Summary:
 
             return summary, compression_cost
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
             self.logger.error("history_compaction_failed", error=str(e))
             return content, 0
 
@@ -513,7 +512,8 @@ Unified Summary:
 
             return summary, compression_cost
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
             self.logger.error("rollup_summarization_failed", error=str(e))
             # Fallback: concatenate summaries with truncation
             combined = f"{existing_summary}\n\n[Recent Activity]\n{new_history}"

@@ -8,6 +8,7 @@ Generates realistic datasets for different scenarios:
 """
 
 from typing import Dict, Any, List, Literal
+from datetime import datetime
 import random
 import string
 
@@ -69,7 +70,7 @@ def generate_rag_dataset(
             "content": generate_random_text(config["words_per_doc"]),
             "metadata": {
                 "source": f"source_{random.randint(1, 10)}",
-                "timestamp": f"2024-01-{random.randint(1, 28):02d}T12:00:00Z",
+                "timestamp": f"{datetime.utcnow().year}-01-{random.randint(1, 28):02d}T12:00:00Z",
                 "relevance_score": random.uniform(0.5, 0.99),
             },
         }
@@ -144,7 +145,7 @@ def generate_api_dataset(
                 "bio": generate_random_text(config["description_words"]),
                 "interests": [generate_random_text(3) for _ in range(5)],
                 "location": f"City {random.randint(1, 100)}",
-                "join_date": f"2024-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
+                "join_date": f"{datetime.utcnow().year}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
             },
             "settings": {
                 "notifications": random.choice([True, False]),
@@ -152,7 +153,7 @@ def generate_api_dataset(
                 "language": random.choice(["en", "es", "fr"]),
             },
             "metadata": {
-                "last_login": f"2024-01-{random.randint(1, 28):02d}T{random.randint(0, 23):02d}:00:00Z",
+                "last_login": f"{datetime.utcnow().year}-01-{random.randint(1, 28):02d}T{random.randint(0, 23):02d}:00:00Z",
                 "total_logins": random.randint(1, 1000),
                 "account_status": "active",
             },
@@ -169,7 +170,7 @@ def generate_api_dataset(
             "amount": round(random.uniform(10, 1000), 2),
             "currency": "USD",
             "description": generate_random_text(config["description_words"] // 2),
-            "timestamp": f"2024-01-{random.randint(1, 28):02d}T{random.randint(0, 23):02d}:00:00Z",
+            "timestamp": f"{datetime.utcnow().year}-01-{random.randint(1, 28):02d}T{random.randint(0, 23):02d}:00:00Z",
             "status": random.choice(["completed", "pending", "failed"]),
         }
         transactions.append(transaction)
@@ -288,7 +289,7 @@ def generate_database_dataset(
             ],
             "total": sum(p["price"] * random.randint(1, 5) for p in order_products),
             "status": random.choice(["pending", "shipped", "delivered", "cancelled"]),
-            "order_date": f"2024-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
+            "order_date": f"{datetime.utcnow().year}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}",
         }
         orders.append(order)
 
