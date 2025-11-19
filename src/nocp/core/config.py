@@ -107,24 +107,38 @@ class ProxyConfig(BaseSettings):
         description="Threshold for drift detection warning (negative delta trend)"
     )
 
-    # Multi-Cloud Configuration (Optional)
+    # Multi-Cloud Configuration (LiteLLM)
     enable_litellm: bool = Field(
-        default=False,
+        default=True,
         description="Enable LiteLLM for multi-cloud routing"
     )
+    litellm_default_model: str = Field(
+        default="gemini/gemini-2.0-flash-exp",
+        description="Default model in LiteLLM format (provider/model)"
+    )
     litellm_fallback_models: Optional[str] = Field(
-        default=None,
+        default="gemini/gemini-1.5-flash,openai/gpt-4o-mini",
         description="Comma-separated list of fallback models"
     )
-
-    # Cost Tracking (per 1M tokens in USD)
-    gemini_flash_input_cost: float = Field(
-        default=0.075,
-        description="Cost per 1M input tokens for Gemini 2.5 Flash"
+    litellm_max_retries: int = Field(
+        default=3,
+        description="Maximum retry attempts for LiteLLM calls"
     )
-    gemini_flash_output_cost: float = Field(
-        default=0.30,
-        description="Cost per 1M output tokens for Gemini 2.5 Flash"
+    litellm_timeout: int = Field(
+        default=60,
+        description="Request timeout in seconds for LiteLLM"
+    )
+
+    # OpenAI API Configuration (Optional for multi-cloud)
+    openai_api_key: Optional[str] = Field(
+        default=None,
+        description="OpenAI API key for multi-cloud routing"
+    )
+
+    # Anthropic API Configuration (Optional for multi-cloud)
+    anthropic_api_key: Optional[str] = Field(
+        default=None,
+        description="Anthropic API key for multi-cloud routing"
     )
 
     # Tool-specific compression thresholds (runtime registry)
@@ -156,18 +170,26 @@ class ProxyConfig(BaseSettings):
 
     def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """
-        Calculate estimated cost in USD for a request.
+        DEPRECATED: Calculate estimated cost in USD for a request.
+
+        Cost tracking has been removed in favor of token efficiency metrics.
+        This method is kept for backward compatibility but always returns 0.0.
 
         Args:
             input_tokens: Number of input tokens
             output_tokens: Number of output tokens
 
         Returns:
-            Estimated cost in USD
+            0.0 (cost tracking deprecated)
         """
-        input_cost = (input_tokens / 1_000_000) * self.gemini_flash_input_cost
-        output_cost = (output_tokens / 1_000_000) * self.gemini_flash_output_cost
-        return input_cost + output_cost
+        import warnings
+        warnings.warn(
+            "calculate_cost() is deprecated and will be removed in v2.0. "
+            "Focus on token reduction metrics instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return 0.0
 
     def ensure_log_directory(self) -> None:
         """Ensure the metrics log directory exists."""

@@ -8,7 +8,6 @@ to deliver optimized LLM interactions with token efficiency as the primary goal.
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
-import google.generativeai as genai
 
 from ..models.schemas import (
     AgentRequest,
@@ -25,6 +24,8 @@ from ..modules.output_serializer import OutputSerializer
 from ..core.config import get_config
 from ..utils.logging import get_logger, log_metrics, get_metrics_logger
 from ..utils.token_counter import TokenCounter
+from ..llm.client import LLMClient
+from ..llm.router import ModelRouter, RequestComplexity
 
 
 class HighEfficiencyProxyAgent:
@@ -60,12 +61,42 @@ class HighEfficiencyProxyAgent:
         # Initialize token counter
         self.token_counter = TokenCounter(model_name)
 
-        # Initialize Gemini API
-        api_key = api_key or self.config.gemini_api_key
-        genai.configure(api_key=api_key)
+        # Initialize LLM client with LiteLLM
+        if self.config.enable_litellm:
+            # Use LiteLLM for multi-provider support
+            fallback_models = None
+            if self.config.litellm_fallback_models:
+                fallback_models = [
+                    m.strip() for m in self.config.litellm_fallback_models.split(",")
+                ]
 
-        self.model_name = model_name or self.config.gemini_model
-        self.model = genai.GenerativeModel(self.model_name)
+            # Build provider-specific API keys dictionary
+            provider_api_keys = {}
+            if self.config.openai_api_key:
+                provider_api_keys["openai"] = self.config.openai_api_key
+            if self.config.anthropic_api_key:
+                provider_api_keys["anthropic"] = self.config.anthropic_api_key
+
+            self.llm_client = LLMClient(
+                default_model=model_name or self.config.litellm_default_model,
+                api_key=api_key or self.config.gemini_api_key,
+                provider_api_keys=provider_api_keys,
+                fallback_models=fallback_models,
+                max_retries=self.config.litellm_max_retries,
+                timeout=self.config.litellm_timeout,
+            )
+            self.model_name = model_name or self.config.litellm_default_model
+        else:
+            # Fallback to google.generativeai for backward compatibility
+            import google.generativeai as genai
+            api_key = api_key or self.config.gemini_api_key
+            genai.configure(api_key=api_key)
+            self.model_name = model_name or self.config.gemini_model
+            self.model = genai.GenerativeModel(self.model_name)
+            self.llm_client = None
+
+        # Initialize model router for intelligent model selection
+        self.model_router = ModelRouter()
 
         # Initialize core modules
         self.router = RequestRouter()
@@ -76,6 +107,7 @@ class HighEfficiencyProxyAgent:
         self.logger.info(
             "proxy_agent_initialized",
             model=self.model_name,
+            litellm_enabled=self.config.enable_litellm,
             max_input_tokens=self.config.max_input_tokens,
             max_output_tokens=self.config.max_output_tokens,
         )
@@ -173,16 +205,8 @@ class HighEfficiencyProxyAgent:
                 agent_response.model_dump_json()
             )
 
-            # Calculate costs
-            estimated_cost = self.config.calculate_cost(
-                input_tokens=compressed_input_tokens,
-                output_tokens=raw_output_tokens,
-            )
-            baseline_cost = self.config.calculate_cost(
-                input_tokens=raw_input_tokens,
-                output_tokens=raw_output_tokens,
-            )
-            estimated_savings = baseline_cost - estimated_cost
+            # Calculate token savings
+            input_token_savings = raw_input_tokens - compressed_input_tokens
 
             # Create metrics
             metrics = ContextMetrics(
@@ -196,8 +220,6 @@ class HighEfficiencyProxyAgent:
                 total_latency_ms=total_latency_ms,
                 compression_latency_ms=compression_latency_ms,
                 llm_inference_latency_ms=total_latency_ms - compression_latency_ms - serialization_time,
-                estimated_cost_usd=estimated_cost,
-                estimated_savings_usd=estimated_savings,
                 tools_used=tools_used,
                 compression_operations=compression_operations,
             )
@@ -209,15 +231,16 @@ class HighEfficiencyProxyAgent:
             self.router.finalize_session(
                 persistent_ctx=persistent_ctx,
                 tokens_used=compressed_input_tokens + raw_output_tokens,
-                cost=estimated_cost,
+                cost=0.0,  # Cost tracking removed - focus on token efficiency
             )
 
             self.logger.info(
                 "request_processed",
                 transaction_id=transaction_id,
                 total_latency_ms=round(total_latency_ms, 2),
-                estimated_cost_usd=round(estimated_cost, 6),
-                estimated_savings_usd=round(estimated_savings, 6),
+                input_token_savings=input_token_savings,
+                output_token_savings=token_savings,
+                compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
             return serialized_output, metrics
@@ -229,6 +252,47 @@ class HighEfficiencyProxyAgent:
                 error=str(e),
             )
             raise
+
+    def _handle_tool_execution(
+        self,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+        transient_ctx: TransientContext,
+        compression_operations: List[CompressionResult],
+        tools_used: List[str],
+    ) -> None:
+        """
+        Execute a tool and manage its output.
+
+        This helper extracts the common tool execution logic used by both
+        LiteLLM and Gemini response handlers.
+
+        Args:
+            tool_name: Name of the tool to execute
+            tool_params: Parameters for the tool
+            transient_ctx: Transient context to update
+            compression_operations: List to track compression operations
+            tools_used: List to track tools used
+        """
+        tools_used.append(tool_name)
+
+        # Execute tool
+        tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
+
+        # Apply context management (compression)
+        managed_output, compression_result = self.context_manager.manage_tool_output(
+            tool_result
+        )
+
+        if compression_result:
+            compression_operations.append(compression_result)
+
+        # Add tool result to history
+        self.router.add_tool_result_to_history(
+            transient_ctx,
+            tool_name,
+            managed_output,
+        )
 
     def _execute_agent_loop(
         self,
@@ -255,59 +319,100 @@ class HighEfficiencyProxyAgent:
             compression_operations.append(history_compression)
 
         # Prepare messages for LLM
-        messages = self._format_messages_for_gemini(transient_ctx, persistent_ctx)
+        messages = self._format_messages_for_llm(transient_ctx, persistent_ctx)
 
         # Get tool schemas
-        tool_schemas = self.tool_executor.get_tool_schemas_for_gemini()
+        tool_schemas = self.tool_executor.get_tool_schemas_for_gemini() if hasattr(self.tool_executor, 'get_tool_schemas_for_gemini') else None
 
-        # Configure generation
-        generation_config = genai.GenerationConfig(
-            max_output_tokens=self.config.max_output_tokens,
-            temperature=0.7,
-        )
-
-        # Call LLM with function calling
-        response = self.model.generate_content(
-            messages,
-            tools=tool_schemas or None,
-            generation_config=generation_config,
-        )
-
-        # Check for function calls
-        if (function_call := response.candidates[0].content.parts[0].function_call):
-            tool_name = function_call.name
-            tool_params = dict(function_call.args)
-
-            tools_used.append(tool_name)
-
-            # Execute tool
-            tool_result = self.tool_executor.execute_tool(tool_name, tool_params)
-
-            # Apply context management (compression)
-            managed_output, compression_result = self.context_manager.manage_tool_output(
-                tool_result
+        # Call LLM with or without LiteLLM
+        if self.llm_client:
+            # Use LiteLLM client
+            if tool_schemas and len(tool_schemas) > 0:
+                response = self.llm_client.complete_with_tools(
+                    messages=messages,
+                    tools=tool_schemas,
+                    max_tokens=self.config.max_output_tokens,
+                    temperature=0.7,
+                )
+            else:
+                response = self.llm_client.complete(
+                    messages=messages,
+                    max_tokens=self.config.max_output_tokens,
+                    temperature=0.7,
+                )
+        else:
+            # Use genai directly (backward compatibility)
+            import google.generativeai as genai
+            generation_config = genai.GenerationConfig(
+                max_output_tokens=self.config.max_output_tokens,
+                temperature=0.7,
             )
-
-            if compression_result:
-                compression_operations.append(compression_result)
-
-            # Add tool result to history
-            self.router.add_tool_result_to_history(
-                transient_ctx,
-                tool_name,
-                managed_output,
-            )
-
-            # Continue agent loop with tool result (simplified - single turn)
-            # In production, this would be recursive for multi-turn tool usage
-            final_response = self.model.generate_content(
-                self._format_messages_for_gemini(transient_ctx, persistent_ctx),
+            response = self.model.generate_content(
+                messages,
+                tools=tool_schemas or None,
                 generation_config=generation_config,
             )
 
-            response_text = final_response.text
+        # Check for function calls and extract response
+        if self.llm_client:
+            # Handle LiteLLM response
+            if response.tool_calls:
+                # Tool calling flow
+                tool_call = response.tool_calls[0]
+                tool_name = tool_call["name"]
+                tool_params = tool_call["arguments"]
+
+                # Execute tool and manage output (shared logic)
+                self._handle_tool_execution(
+                    tool_name,
+                    tool_params,
+                    transient_ctx,
+                    compression_operations,
+                    tools_used,
+                )
+
+                # Continue agent loop with tool result
+                final_response = self.llm_client.complete(
+                    messages=self._format_messages_for_llm(transient_ctx, persistent_ctx),
+                    max_tokens=self.config.max_output_tokens,
+                    temperature=0.7,
+                )
+                response_text = str(final_response.content) if final_response.content else ""
+            else:
+                response_text = str(response.content) if response.content else ""
         else:
-            response_text = response.text
+            # Handle genai response (backward compatibility)
+            if (hasattr(response, 'candidates') and
+                len(response.candidates) > 0 and
+                hasattr(response.candidates[0], 'content') and
+                hasattr(response.candidates[0].content, 'parts') and
+                len(response.candidates[0].content.parts) > 0 and
+                (function_call := response.candidates[0].content.parts[0].function_call)):
+                tool_name = function_call.name
+                tool_params = dict(function_call.args)
+
+                # Execute tool and manage output (shared logic)
+                self._handle_tool_execution(
+                    tool_name,
+                    tool_params,
+                    transient_ctx,
+                    compression_operations,
+                    tools_used,
+                )
+
+                # Continue agent loop with tool result
+                import google.generativeai as genai
+                generation_config = genai.GenerationConfig(
+                    max_output_tokens=self.config.max_output_tokens,
+                    temperature=0.7,
+                )
+                final_response = self.model.generate_content(
+                    self._format_messages_for_llm(transient_ctx, persistent_ctx),
+                    generation_config=generation_config,
+                )
+                response_text = final_response.text
+            else:
+                response_text = response.text
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
@@ -317,13 +422,13 @@ class HighEfficiencyProxyAgent:
             confidence=0.9,
         )
 
-    def _format_messages_for_gemini(
+    def _format_messages_for_llm(
         self,
         transient_ctx: TransientContext,
         persistent_ctx: PersistentContext,
     ) -> List[Dict[str, str]]:
         """
-        Format context into messages for Gemini API.
+        Format context into messages for LLM API (LiteLLM or Gemini).
 
         Args:
             transient_ctx: Transient context

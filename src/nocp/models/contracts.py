@@ -126,9 +126,6 @@ class OptimizedContext(BaseModel):
     method_used: CompressionMethod
     compression_time_ms: float
 
-    # Cost analysis
-    estimated_cost_savings: float = Field(..., description="In USD")
-
     # Quality metrics
     semantic_similarity_score: Optional[float] = Field(
         None,
@@ -195,3 +192,40 @@ class SerializedOutput(BaseModel):
         pattern="^(simple|tabular|nested|complex)$",
         description="Why this format was chosen"
     )
+
+
+# ============================================================================
+# LLM Client Contracts
+# ============================================================================
+
+class MessageRole(str, Enum):
+    """Message roles for chat completion."""
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+    TOOL = "tool"
+
+
+class LLMRequest(BaseModel):
+    """Request for LLM completion."""
+    messages: List[Dict[str, str]] = Field(..., description="Chat messages")
+    model: Optional[str] = Field(None, description="Model to use (LiteLLM format)")
+    max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    response_schema: Optional[Any] = Field(None, description="Pydantic model for structured output")
+    tools: Optional[List[Dict[str, Any]]] = Field(None, description="Tool definitions for function calling")
+
+
+class LLMResponse(BaseModel):
+    """Response from LLM completion."""
+    content: Any = Field(..., description="Response content (string or structured)")
+    model: str = Field(..., description="Model that generated the response")
+    input_tokens: int = Field(..., description="Input token count")
+    output_tokens: int = Field(..., description="Output token count")
+    latency_ms: float = Field(..., description="Request latency in milliseconds")
+    finish_reason: str = Field(..., description="Completion finish reason")
+    tool_calls: List[Dict[str, Any]] = Field(default_factory=list, description="Tool calls if any")
+    raw_response: Optional[Any] = Field(None, description="Raw LiteLLM response object")
+
+    class Config:
+        arbitrary_types_allowed = True
