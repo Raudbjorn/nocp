@@ -10,9 +10,8 @@ import sys
 import time
 from datetime import datetime
 from typing import List
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from nocp.core.act import ToolExecutor
 from nocp.core.async_modules import (
     AsyncContextManager,
