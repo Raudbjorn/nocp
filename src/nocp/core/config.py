@@ -106,6 +106,10 @@ class ProxyConfig(BaseSettings):
         default=-1000.0,
         description="Threshold for drift detection warning (negative delta trend)"
     )
+    enable_rich_console: bool = Field(
+        default=True,
+        description="Enable rich console output (banners, tables, progress bars)"
+    )
 
     # Multi-Cloud Configuration (LiteLLM)
     enable_litellm: bool = Field(

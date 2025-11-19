@@ -1,5 +1,5 @@
 """Enhanced logging with Rich library"""
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.theme import Theme
@@ -16,6 +16,10 @@ from rich.progress import (
 from rich.tree import Tree
 from rich.traceback import install as install_rich_traceback
 import structlog
+
+if TYPE_CHECKING:
+    from ..core.config import ProxyConfig
+    from ..models.schemas import ContextMetrics
 
 # Custom NOCP theme
 NOCP_THEME = Theme({
@@ -58,7 +62,7 @@ class NOCPConsole:
             )
         )
 
-    def print_config_summary(self, config: 'ProxyConfig'):
+    def print_config_summary(self, config: "ProxyConfig"):
         """Print configuration summary table"""
         table = Table(title="Configuration", show_header=False, border_style="cyan")
         table.add_column("Setting", style="cyan")
@@ -95,7 +99,7 @@ class NOCPConsole:
 
         self.console.print(table)
 
-    def print_metrics(self, metrics: 'ContextMetrics'):
+    def print_metrics(self, metrics: "ContextMetrics"):
         """Print transaction metrics in beautiful table"""
         table = Table(title="Transaction Metrics", show_header=True, border_style="cyan")
         table.add_column("Metric", style="cyan", no_wrap=True)
@@ -111,7 +115,8 @@ class NOCPConsole:
 
         # Token metrics
         input_savings = metrics.raw_input_tokens - metrics.compressed_input_tokens
-        input_reduction_pct = (input_savings / metrics.raw_input_tokens * 100) if metrics.raw_input_tokens > 0 else 0
+        has_raw_input_tokens = metrics.raw_input_tokens > 0
+        input_reduction_pct = (input_savings / metrics.raw_input_tokens * 100) if has_raw_input_tokens else 0
         table.add_row(
             "Input Tokens",
             f"{metrics.compressed_input_tokens:,}",
@@ -170,7 +175,8 @@ class NOCPConsole:
         act_branch = tree.add("[blue]⚡ Act[/blue] - Tool Execution")
         for tool in operations.get('tools', []):
             duration = tool.get('duration_ms', 0)
-            act_branch.add(f"✓ {tool['name']} ({duration:.0f}ms)")
+            tool_name = tool.get('name', 'Unknown Tool')
+            act_branch.add(f"✓ {tool_name} ({duration:.0f}ms)")
 
         # Assess phase
         assess_branch = tree.add("[yellow]🔍 Assess[/yellow] - Context Optimization")
@@ -228,10 +234,18 @@ console = NOCPConsole()
 
 def setup_rich_logging() -> None:
     """
-    Setup Rich logging integration with structlog.
+    Setup Rich traceback formatting for better error messages.
 
-    This enhances the existing structlog configuration with Rich's
-    beautiful terminal output and traceback formatting.
+    This installs Rich's enhanced traceback handler globally, which provides:
+    - Syntax-highlighted code in tracebacks
+    - Local variable inspection
+    - Better formatting and readability
+
+    Note: This function installs rich tracebacks globally. Call it once at
+    application startup if you want enhanced error messages.
+
+    Note: structlog configuration is handled separately in utils/logging.py.
+    This function only handles rich traceback installation, not log formatting.
     """
     # Install rich traceback handler for better error messages
     install_rich_traceback(
@@ -243,23 +257,8 @@ def setup_rich_logging() -> None:
         suppress=[structlog],
     )
 
-    # Create RichHandler for structlog
-    rich_handler = RichHandler(
-        console=console.console,
-        show_time=True,
-        show_level=True,
-        show_path=False,
-        markup=True,
-        rich_tracebacks=True,
-        tracebacks_show_locals=True,
-    )
 
-    # Note: structlog configuration is already set up in utils/logging.py
-    # This function mainly installs rich tracebacks and provides the RichHandler
-    # if needed for additional logging configuration
-
-
-def format_metrics_summary(metrics: 'ContextMetrics') -> str:
+def format_metrics_summary(metrics: "ContextMetrics") -> str:
     """
     Format metrics as a compact string for inline logging.
 

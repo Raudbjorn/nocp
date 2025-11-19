@@ -59,9 +59,10 @@ class HighEfficiencyProxyAgent:
         self.logger = get_logger(__name__)
         self.logger.info("initializing_proxy_agent")
 
-        # Print startup banner
-        console.print_banner()
-        console.print_config_summary(self.config)
+        # Print startup banner (if rich console is enabled)
+        if self.config.enable_rich_console:
+            console.print_banner()
+            console.print_config_summary(self.config)
 
         # Initialize token counter
         self.token_counter = TokenCounter(model_name)
@@ -232,8 +233,9 @@ class HighEfficiencyProxyAgent:
             # Log metrics
             log_metrics(metrics)
 
-            # Print beautiful metrics table
-            console.print_metrics(metrics)
+            # Print beautiful metrics table (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_metrics(metrics)
 
             # Update session
             self.router.finalize_session(
@@ -251,10 +253,11 @@ class HighEfficiencyProxyAgent:
                 compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
-            # Print success message
-            console.print_success(
-                f"Request processed successfully - saved {input_token_savings + token_savings:,} tokens"
-            )
+            # Print success message (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_success(
+                    f"Request processed successfully - saved {input_token_savings + token_savings:,} tokens"
+                )
 
             return serialized_output, metrics
 
@@ -264,7 +267,8 @@ class HighEfficiencyProxyAgent:
                 transaction_id=transaction_id,
                 error=str(e),
             )
-            console.print_error(f"Request processing failed: {str(e)}")
+            if self.config.enable_rich_console:
+                console.print_error(f"Request processing failed: {str(e)}")
             raise
 
     def _handle_tool_execution(
