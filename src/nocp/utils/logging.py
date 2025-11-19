@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ..core.config import get_config
+from ..models.enums import LogLevel
 from ..models.schemas import ContextMetrics
 
 
@@ -23,8 +24,6 @@ def setup_logging() -> None:
     for production environments.
     """
     config = get_config()
-
-    from ..models.enums import LogLevel
 
     structlog.configure(
         processors=[

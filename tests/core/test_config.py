@@ -117,6 +117,14 @@ class TestProxyConfigEnums:
         assert CompressionStrategy.NONE in config.compression_strategies
         assert len(config.compression_strategies) == 2
 
+    def test_invalid_compression_strategies(self, monkeypatch):
+        """Test that invalid compression strategy names raise validation errors."""
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.setenv("COMPRESSION_STRATEGIES", '["invalid_strategy", "semantic_pruning"]')
+        with pytest.raises(ValidationError) as exc_info:
+            ProxyConfig()
+        assert "compression_strategies" in str(exc_info.value)
+
     def test_is_strategy_enabled_method(self, monkeypatch):
         """Test is_strategy_enabled helper method."""
         monkeypatch.setenv("GEMINI_API_KEY", "test-key")
@@ -131,7 +139,7 @@ class TestProxyConfigEnums:
         assert config.is_strategy_enabled(CompressionStrategy.NONE) is False
 
     def test_backward_compatibility_with_boolean_flags(self, monkeypatch):
-        """Test that legacy boolean flags still work."""
+        """Test that legacy boolean flags correctly sync with compression_strategies."""
         monkeypatch.setenv("GEMINI_API_KEY", "test-key")
         monkeypatch.setenv("ENABLE_SEMANTIC_PRUNING", "false")
         config = ProxyConfig()
@@ -139,8 +147,23 @@ class TestProxyConfigEnums:
         # The boolean flag should still be set correctly
         assert config.enable_semantic_pruning is False
 
-        # But the new compression_strategies list is independent
-        assert CompressionStrategy.SEMANTIC_PRUNING in config.compression_strategies
+        # The new compression_strategies list should now be synchronized with the flag
+        # Thanks to the model_validator, the flag is now the single source of truth
+        assert CompressionStrategy.SEMANTIC_PRUNING not in config.compression_strategies
+
+    def test_legacy_flags_sync_multiple_flags(self, monkeypatch):
+        """Test that multiple legacy flags are correctly synchronized."""
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.setenv("ENABLE_SEMANTIC_PRUNING", "false")
+        monkeypatch.setenv("ENABLE_KNOWLEDGE_DISTILLATION", "true")
+        monkeypatch.setenv("ENABLE_HISTORY_COMPACTION", "false")
+        config = ProxyConfig()
+
+        # Only KNOWLEDGE_DISTILLATION should remain enabled
+        assert CompressionStrategy.SEMANTIC_PRUNING not in config.compression_strategies
+        assert CompressionStrategy.KNOWLEDGE_DISTILLATION in config.compression_strategies
+        assert CompressionStrategy.HISTORY_COMPACTION not in config.compression_strategies
+        assert len(config.compression_strategies) == 1
 
 
 class TestEnumStringification:

@@ -8,7 +8,7 @@ configuration object for all components.
 import os
 from typing import Optional, Dict, List
 from pathlib import Path
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ..models.enums import OutputFormat, LogLevel, CompressionStrategy, LLMProvider
@@ -158,6 +158,44 @@ class ProxyConfig(BaseSettings):
 
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
+
+    @model_validator(mode='after')
+    def sync_compression_strategies(self) -> 'ProxyConfig':
+        """
+        Sync legacy boolean flags with compression_strategies for backward compatibility.
+
+        This validator ensures a single source of truth by checking if legacy boolean
+        flags were explicitly set and updating the compression_strategies list accordingly.
+        This prevents inconsistent behavior where legacy flags and the new list could
+        conflict.
+
+        Returns:
+            Updated ProxyConfig instance with synchronized configuration
+        """
+        strategies = set(self.compression_strategies)
+
+        # Check if legacy flags were explicitly set by the user via environment variables
+        if "enable_semantic_pruning" in self.model_fields_set:
+            if self.enable_semantic_pruning:
+                strategies.add(CompressionStrategy.SEMANTIC_PRUNING)
+            else:
+                strategies.discard(CompressionStrategy.SEMANTIC_PRUNING)
+
+        if "enable_knowledge_distillation" in self.model_fields_set:
+            if self.enable_knowledge_distillation:
+                strategies.add(CompressionStrategy.KNOWLEDGE_DISTILLATION)
+            else:
+                strategies.discard(CompressionStrategy.KNOWLEDGE_DISTILLATION)
+
+        if "enable_history_compaction" in self.model_fields_set:
+            if self.enable_history_compaction:
+                strategies.add(CompressionStrategy.HISTORY_COMPACTION)
+            else:
+                strategies.discard(CompressionStrategy.HISTORY_COMPACTION)
+
+        # Update the strategies list (sorted for deterministic behavior)
+        self.compression_strategies = sorted(list(strategies), key=lambda s: s.value)
+        return self
 
     def is_strategy_enabled(self, strategy: CompressionStrategy) -> bool:
         """

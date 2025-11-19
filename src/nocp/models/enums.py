@@ -19,10 +19,6 @@ class OutputFormat(str, Enum):
     COMPACT_JSON = "compact_json"
     JSON = "json"
 
-    def __str__(self) -> str:
-        """Return the enum value as a string for serialization."""
-        return self.value
-
 
 class LogLevel(str, Enum):
     """Standard logging levels.
@@ -40,10 +36,6 @@ class LogLevel(str, Enum):
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
-    def __str__(self) -> str:
-        """Return the enum value as a string for serialization."""
-        return self.value
-
 
 class CompressionStrategy(str, Enum):
     """Available context compression strategies.
@@ -58,10 +50,6 @@ class CompressionStrategy(str, Enum):
     KNOWLEDGE_DISTILLATION = "knowledge_distillation"
     HISTORY_COMPACTION = "history_compaction"
     NONE = "none"
-
-    def __str__(self) -> str:
-        """Return the enum value as a string for serialization."""
-        return self.value
 
 
 class LLMProvider(str, Enum):
@@ -79,10 +67,6 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     COHERE = "cohere"
     AZURE = "azure"
-
-    def __str__(self) -> str:
-        """Return the enum value as a string for serialization."""
-        return self.value
 
 
 # Export all enums
