@@ -6,20 +6,19 @@ Manages tool registration and execution with retry logic and timeout handling.
 
 import asyncio
 import json
-import logging
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 from ..exceptions import ToolExecutionError
 from ..models.contracts import ToolRequest, ToolResult, ToolType
-
-logger = logging.getLogger(__name__)
+from .cache import CacheBackend
+from ..utils.logging import act_logger
 
 
 class ToolExecutor:
     """
-    Manages tool registration and execution with retry logic.
+    Manages tool registration and execution with retry logic and caching.
 
     Example:
         executor = ToolExecutor()
@@ -37,9 +36,16 @@ class ToolExecutor:
         result = executor.execute(request)
     """
 
-    def __init__(self):
+    def __init__(self, cache: Optional[CacheBackend] = None):
+        """
+        Initialize ToolExecutor with optional caching.
+
+        Args:
+            cache: Optional CacheBackend instance for caching tool results
+        """
         self._registry: Dict[str, Callable] = {}
         self._async_registry: Dict[str, Callable] = {}
+        self._cache = cache
 
     def register_tool(
         self,
@@ -73,19 +79,22 @@ class ToolExecutor:
             return func
         return decorator
 
-    def execute(self, request: ToolRequest) -> ToolResult:
+    def execute(self, request: ToolRequest, use_cache: bool = True) -> ToolResult:
         """
-        Execute a registered tool with retry logic.
+        Execute a registered tool with retry logic and caching.
 
         Implementation steps:
-        1. Validate tool exists in registry
-        2. Execute with timeout
-        3. Retry on failure if configured
-        4. Estimate token count of result
-        5. Return ToolResult
+        1. Check cache if enabled
+        2. Validate tool exists in registry
+        3. Execute with timeout
+        4. Retry on failure if configured
+        5. Estimate token count of result
+        6. Cache result if enabled
+        7. Return ToolResult
 
         Args:
             request: ToolRequest with execution parameters
+            use_cache: Whether to use cache for this request (default: True)
 
         Returns:
             ToolResult with execution outcome and metadata
@@ -94,11 +103,28 @@ class ToolExecutor:
             ToolExecutionError: If execution fails after all retries
             TimeoutError: If execution exceeds timeout
         """
+        act_logger.log_operation_start(
+            "tool_execution",
+            {"tool_id": request.tool_id, "use_cache": use_cache}
+        )
+
+        # Check cache first
+        if use_cache and self._cache is not None:
+            cached_result = self._cache.get_by_request(request)
+            if cached_result is not None:
+                act_logger.log_operation_complete(
+                    "tool_execution",
+                    details={"tool_id": request.tool_id, "cache_hit": True}
+                )
+                return cached_result
+
         if request.tool_id not in self._registry:
-            raise ToolExecutionError(
+            error = ToolExecutionError(
                 f"Tool '{request.tool_id}' not found in registry",
                 details={"tool_id": request.tool_id}
             )
+            act_logger.log_operation_error("tool_execution", error, {"tool_id": request.tool_id})
+            raise error
 
         retry_config = request.retry_config
         max_attempts = retry_config.max_attempts if retry_config else 1
@@ -122,7 +148,7 @@ class ToolExecutor:
                 # Estimate tokens
                 token_estimate = self._estimate_tokens(result)
 
-                return ToolResult(
+                tool_result = ToolResult(
                     tool_id=request.tool_id,
                     success=True,
                     data=result,
@@ -132,6 +158,18 @@ class ToolExecutor:
                     token_estimate=token_estimate,
                     retry_count=attempt
                 )
+
+                act_logger.log_operation_complete(
+                    "tool_execution",
+                    duration_ms=execution_time,
+                    details={"tool_id": request.tool_id, "success": True, "attempt": attempt + 1, "cache_hit": False}
+                )
+
+                # Cache successful result
+                if use_cache and self._cache is not None:
+                    self._cache.set_by_request(request, tool_result)
+
+                return tool_result
 
             except TimeoutError as e:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
@@ -157,9 +195,9 @@ class ToolExecutor:
 
         # All retries failed - raise appropriate exception
         if is_timeout:
-            raise TimeoutError(last_error)
+            error = TimeoutError(last_error)
         else:
-            raise ToolExecutionError(
+            error = ToolExecutionError(
                 f"Tool execution failed after {max_attempts} attempts",
                 details={
                     "tool_id": request.tool_id,
@@ -167,13 +205,20 @@ class ToolExecutor:
                     "attempts": max_attempts
                 }
             )
+        act_logger.log_operation_error(
+            "tool_execution",
+            error,
+            {"tool_id": request.tool_id, "attempts": max_attempts}
+        )
+        raise error
 
-    async def execute_async(self, request: ToolRequest) -> ToolResult:
+    async def execute_async(self, request: ToolRequest, use_cache: bool = True) -> ToolResult:
         """
-        Async version for concurrent execution.
+        Async version for concurrent execution with caching.
 
         Args:
             request: ToolRequest with execution parameters
+            use_cache: Whether to use cache for this request (default: True)
 
         Returns:
             ToolResult with execution outcome and metadata
@@ -182,11 +227,34 @@ class ToolExecutor:
             ToolExecutionError: If execution fails after all retries
             TimeoutError: If execution exceeds timeout
         """
+        act_logger.log_operation_start(
+            "async_tool_execution",
+            {"tool_id": request.tool_id, "use_cache": use_cache}
+        )
+
+        # Check cache first
+        if use_cache and self._cache is not None:
+            # For async execution, we need to use the cache's async methods if available
+            if hasattr(self._cache, 'get_by_request_async'):
+                cached_result = await self._cache.get_by_request_async(request)
+            else:
+                # Fallback to sync method if async version is not available
+                cached_result = await asyncio.to_thread(self._cache.get_by_request, request)
+
+            if cached_result is not None:
+                act_logger.log_operation_complete(
+                    "async_tool_execution",
+                    details={"tool_id": request.tool_id, "cache_hit": True}
+                )
+                return cached_result
+
         if request.tool_id not in self._async_registry:
-            raise ToolExecutionError(
+            error = ToolExecutionError(
                 f"Async tool '{request.tool_id}' not found in registry",
                 details={"tool_id": request.tool_id}
             )
+            act_logger.log_operation_error("async_tool_execution", error, {"tool_id": request.tool_id})
+            raise error
 
         retry_config = request.retry_config
         max_attempts = retry_config.max_attempts if retry_config else 1
@@ -207,7 +275,7 @@ class ToolExecutor:
                 execution_time = (time.perf_counter() - start) * 1000
                 token_estimate = self._estimate_tokens(result)
 
-                return ToolResult(
+                tool_result = ToolResult(
                     tool_id=request.tool_id,
                     success=True,
                     data=result,
@@ -217,6 +285,22 @@ class ToolExecutor:
                     token_estimate=token_estimate,
                     retry_count=attempt
                 )
+
+                act_logger.log_operation_complete(
+                    "async_tool_execution",
+                    duration_ms=execution_time,
+                    details={"tool_id": request.tool_id, "success": True, "attempt": attempt + 1, "cache_hit": False}
+                )
+
+                # Cache successful result
+                if use_cache and self._cache is not None:
+                    if hasattr(self._cache, 'set_by_request_async'):
+                        await self._cache.set_by_request_async(request, tool_result)
+                    else:
+                        # Fallback to sync method if async version is not available
+                        await asyncio.to_thread(self._cache.set_by_request, request, tool_result)
+
+                return tool_result
 
             except asyncio.TimeoutError:
                 last_error = f"Tool execution exceeded {request.timeout_seconds}s timeout"
@@ -238,9 +322,9 @@ class ToolExecutor:
 
         # All retries failed - raise appropriate exception
         if is_timeout:
-            raise TimeoutError(last_error)
+            error = TimeoutError(last_error)
         else:
-            raise ToolExecutionError(
+            error = ToolExecutionError(
                 f"Tool execution failed after {max_attempts} attempts",
                 details={
                     "tool_id": request.tool_id,
@@ -248,6 +332,12 @@ class ToolExecutor:
                     "attempts": max_attempts
                 }
             )
+        act_logger.log_operation_error(
+            "async_tool_execution",
+            error,
+            {"tool_id": request.tool_id, "attempts": max_attempts}
+        )
+        raise error
 
     def _execute_with_timeout(
         self,

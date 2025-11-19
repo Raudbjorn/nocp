@@ -157,6 +157,86 @@ observability:
   metrics_export_interval: 60
 ```
 
+### 2.3 Configuration Validation
+
+The ProxyConfig class includes Pydantic validators that catch configuration errors at startup. These validators ensure your configuration is valid before the application starts, preventing runtime failures.
+
+#### Validation Rules
+
+**Compression Threshold** (`default_compression_threshold`):
+- **Minimum**: 1000 tokens (enforced)
+- **Warning**: Values > 100,000 tokens may rarely trigger compression
+- **Example Error**: `default_compression_threshold (500) is too low. Minimum recommended: 1000 tokens`
+
+**Compression Cost Multiplier** (`compression_cost_multiplier`):
+- **Minimum**: 1.0 (enforced)
+- **Warning**: Values > 10.0 may reject beneficial compression
+- **Rationale**: Values < 1.0 would accept compression even when it increases cost
+- **Example Error**: `compression_cost_multiplier must be >= 1.0, got 0.5`
+
+**TOON Fallback Threshold** (`toon_fallback_threshold`):
+- **Range**: 0.0 to 1.0 (enforced)
+- **Purpose**: Tabularity threshold below which to fallback to compact JSON
+- **Example Error**: `toon_fallback_threshold must be 0.0-1.0, got 1.5`
+
+**Log Level** (`log_level`):
+- **Valid Values**: DEBUG, INFO, WARNING, ERROR, CRITICAL
+- **Auto-normalized**: Lowercase values are converted to uppercase
+- **Example Error**: `log_level must be one of {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}, got 'INVALID'`
+
+**Student Summarizer Max Tokens** (`student_summarizer_max_tokens`):
+- **Minimum**: 100 tokens (enforced)
+- **Warning**: Values > 10,000 tokens may reduce compression effectiveness
+- **Example Error**: `student_summarizer_max_tokens (50) is too low. Minimum recommended: 100 tokens`
+
+**Token Limits** (`max_input_tokens`, `max_output_tokens`):
+- **Minimum**: Must be positive (> 0)
+- **Warning**: Values > 10,000,000 tokens trigger a warning to verify model capabilities
+- **Example Error**: `Token limit must be positive, got -1000`
+
+#### Cross-Field Validation
+
+The configuration also validates relationships between fields:
+
+1. **Output vs Input Tokens**:
+   - **Warning**: If `max_output_tokens` > `max_input_tokens`
+   - **Reason**: May cause issues with some models
+
+2. **Compression Threshold vs Max Input**:
+   - **Error**: If `default_compression_threshold` > `max_input_tokens`
+   - **Reason**: Compression would never trigger
+
+3. **Student Summarizer vs Compression Threshold**:
+   - **Warning**: If `student_summarizer_max_tokens` > `default_compression_threshold`
+   - **Reason**: Student summarizer may produce outputs larger than compression trigger
+
+#### Example Validation Errors
+
+```bash
+# Invalid compression threshold (too low)
+$ export NOCP_DEFAULT_COMPRESSION_THRESHOLD=500
+$ ./nocp run examples/basic_usage.py
+ValidationError: default_compression_threshold (500) is too low. Minimum recommended: 1000 tokens
+
+# Invalid TOON threshold (out of range)
+$ export NOCP_TOON_FALLBACK_THRESHOLD=1.5
+$ ./nocp run examples/basic_usage.py
+ValidationError: toon_fallback_threshold must be 0.0-1.0, got 1.5
+
+# Invalid cross-field configuration
+$ export NOCP_MAX_INPUT_TOKENS=50000
+$ export NOCP_DEFAULT_COMPRESSION_THRESHOLD=100000
+$ ./nocp run examples/basic_usage.py
+ValidationError: default_compression_threshold (100,000) exceeds max_input_tokens (50,000). Compression would never trigger.
+```
+
+#### Best Practices
+
+- **Start with defaults**: The default configuration passes all validators
+- **Test configuration changes**: Use `./nocp validate-config` to check configuration without running the application
+- **Monitor warnings**: Pay attention to validation warnings in logs - they indicate potentially problematic settings
+- **Adjust incrementally**: Make small changes to configuration values and test the impact
+
 ---
 
 ## 3. Running the Application
@@ -352,11 +432,11 @@ agent = HighEfficiencyProxyAgent(
     }
 )
 
-# For distributed systems: use Redis
+# For distributed systems: use ChromaDB
 agent = HighEfficiencyProxyAgent(
     config={
-        "cache_backend": "redis",
-        "redis_url": "redis://localhost:6379/0"
+        "cache_backend": "chromadb",
+        "chromadb_persist_dir": "./chroma_cache"
     }
 )
 ```
@@ -477,7 +557,7 @@ spec:
 
 **Horizontal Scaling:**
 - Stateless design allows multiple replicas
-- Use Redis for shared caching layer
+- Use ChromaDB for shared caching layer
 - Load balancer distributes requests
 
 **Vertical Scaling:**
@@ -654,7 +734,7 @@ Maintain `CHANGELOG.md`:
 
 ### Added
 - Conversation history compaction
-- Redis caching support
+- ChromaDB caching support
 - Async tool execution
 
 ### Fixed

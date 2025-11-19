@@ -300,9 +300,9 @@ Implement multi-level caching:
 def cached_tool_execution(tool_name: str, params_hash: str) -> ToolResult:
     pass
 
-# Level 2: Redis cache for compressed contexts (shared across instances)
+# Level 2: ChromaDB cache for compressed contexts (shared across instances)
 def get_cached_context(context_hash: str) -> Optional[OptimizedContext]:
-    return redis_client.get(f"context:{context_hash}")
+    return chromadb_cache.get(f"context:{context_hash}")
 ```
 
 ### 5.2 Async/Concurrent Processing
