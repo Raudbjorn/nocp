@@ -260,12 +260,11 @@ class ComponentLogger:
         self.console.print(
             f"[cyan]▶[/cyan] [{self.component}] Starting: {operation}"
         )
-        if details:
-            self.logger.info(
-                f"{operation}_started",
-                component=self.component,
-                **details
-            )
+        self.logger.info(
+            f"{operation}_started",
+            component=self.component,
+            **(details or {})
+        )
 
     def log_operation_complete(
         self,
@@ -275,16 +274,15 @@ class ComponentLogger:
     ):
         """Log operation completion"""
         msg = f"[green]✅[/green] [{self.component}] Completed: {operation}"
-        if duration_ms:
+        if duration_ms is not None:
             msg += f" ({duration_ms:.0f}ms)"
 
         self.console.print(msg)
 
-        log_data = {"component": self.component}
-        if duration_ms:
+        log_data = details.copy() if details else {}
+        log_data["component"] = self.component
+        if duration_ms is not None:
             log_data["duration_ms"] = duration_ms
-        if details:
-            log_data.update(details)
 
         self.logger.info(f"{operation}_completed", **log_data)
 
@@ -295,20 +293,26 @@ class ComponentLogger:
         details: Optional[dict] = None
     ):
         """Log operation error"""
+        from rich.traceback import Traceback
+
         self.console.print(
             f"[red]❌[/red] [{self.component}] Failed: {operation}"
         )
-        self.console.print_exception()
+        trace = Traceback.from_exception(
+            type(error),
+            error,
+            error.__traceback__,
+        )
+        self.console.print(trace)
 
-        log_data = {
+        log_data = details.copy() if details else {}
+        log_data.update({
             "component": self.component,
             "error_type": type(error).__name__,
             "error_message": str(error)
-        }
-        if details:
-            log_data.update(details)
+        })
 
-        self.logger.error(f"{operation}_failed", **log_data)
+        self.logger.error(f"{operation}_failed", **log_data, exc_info=error)
 
     def log_metric(self, metric_name: str, value: Any, unit: str = ""):
         """Log a metric"""

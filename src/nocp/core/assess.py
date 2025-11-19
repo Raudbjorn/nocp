@@ -89,6 +89,7 @@ class ContextManager:
             OptimizedContext with compressed text and metrics
         """
         assess_logger.log_operation_start("context_optimization")
+        start_time = time.perf_counter()
 
         # Step 1: Count original tokens
         raw_text = self._context_to_text(context)
@@ -96,8 +97,10 @@ class ContextManager:
 
         # Step 2: Check if compression warranted
         if original_tokens < self.compression_threshold:
+            early_exit_time = (time.perf_counter() - start_time) * 1000
             assess_logger.log_operation_complete(
                 "context_optimization",
+                duration_ms=early_exit_time,
                 details={"method": "NONE", "original_tokens": original_tokens, "reason": "below_threshold"}
             )
             return OptimizedContext(
@@ -119,7 +122,7 @@ class ContextManager:
             strategy = self.select_strategy(context)
 
         # Step 4: Apply compression
-        start_time = time.perf_counter()
+        compression_start_time = time.perf_counter()
 
         try:
             if strategy == CompressionMethod.SEMANTIC_PRUNING:
@@ -136,7 +139,8 @@ class ContextManager:
             compressed_text = raw_text
             strategy = CompressionMethod.NONE
 
-        compression_time = (time.perf_counter() - start_time) * 1000
+        compression_time = (time.perf_counter() - compression_start_time) * 1000
+        total_time = (time.perf_counter() - start_time) * 1000
 
         # Step 5: Count compressed tokens
         compressed_tokens = self.estimate_tokens(compressed_text)
@@ -144,12 +148,13 @@ class ContextManager:
 
         assess_logger.log_operation_complete(
             "context_optimization",
-            duration_ms=compression_time,
+            duration_ms=total_time,
             details={
                 "method": strategy.value,
                 "original_tokens": original_tokens,
                 "compressed_tokens": compressed_tokens,
-                "compression_ratio": round(compression_ratio, 3)
+                "compression_ratio": round(compression_ratio, 3),
+                "compression_time_ms": round(compression_time, 2)
             }
         )
 
