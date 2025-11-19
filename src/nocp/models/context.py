@@ -75,10 +75,18 @@ class PersistentContext(BaseModel):
         description="Core system instructions for the agent"
     )
 
-    # Long-term memory
+    # Long-term memory with roll-up summarization
     conversation_summary: Optional[str] = Field(
         default=None,
         description="Rolled-up summary of past conversations"
+    )
+    summary_generations: int = Field(
+        default=0,
+        description="Number of times the summary has been regenerated (tracks compression depth)"
+    )
+    last_compaction_turn: int = Field(
+        default=0,
+        description="Turn number when last compaction occurred"
     )
     user_preferences: Dict[str, Any] = Field(
         default_factory=dict,
@@ -89,6 +97,8 @@ class PersistentContext(BaseModel):
     total_turns: int = Field(default=0)
     total_tokens_processed: int = Field(default=0)
     total_cost_usd: float = Field(default=0.0)
+    total_compressions: int = Field(default=0)
+    total_compression_savings: int = Field(default=0)
 
     # Lifecycle
     state: Literal["active", "idle", "archived"] = Field(default="active")
@@ -98,6 +108,18 @@ class PersistentContext(BaseModel):
         self.total_turns += 1
         self.total_tokens_processed += tokens
         self.total_cost_usd += cost
+        self.last_updated = datetime.utcnow()
+
+    def update_compression_metrics(self, savings: int) -> None:
+        """Update compression-specific metrics."""
+        self.total_compressions += 1
+        self.total_compression_savings += savings
+        self.last_updated = datetime.utcnow()
+
+    def record_compaction(self, turn_number: int) -> None:
+        """Record that a history compaction occurred."""
+        self.summary_generations += 1
+        self.last_compaction_turn = turn_number
         self.last_updated = datetime.utcnow()
 
 

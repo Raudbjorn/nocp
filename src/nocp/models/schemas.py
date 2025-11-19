@@ -117,6 +117,71 @@ class ContextMetrics(BaseModel):
     compression_operations: List[CompressionResult] = Field(default_factory=list)
 
 
+class TransactionLog(BaseModel):
+    """
+    Complete transaction log for observability and monitoring.
+
+    This schema captures all relevant metrics for a single request-response cycle,
+    enabling comprehensive analysis of compression effectiveness, cost, and performance.
+    """
+
+    # Request identification
+    transaction_id: str = Field(..., description="Unique transaction identifier")
+    session_id: Optional[str] = Field(None, description="Session identifier")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    # Request details
+    user_query: str = Field(..., description="Original user query")
+    tools_invoked: List[str] = Field(default_factory=list, description="Tools called during execution")
+
+    # Input compression metrics
+    raw_input_tokens: int = Field(..., description="Total tokens before compression")
+    optimized_input_tokens: int = Field(..., description="Tokens after compression")
+    input_compression_ratio: float = Field(..., description="Compression ratio (optimized/raw)")
+    input_compression_method: Optional[str] = Field(None, description="Compression method used")
+    compression_justified: bool = Field(True, description="Whether compression passed cost-benefit check")
+
+    # LLM metrics
+    model_used: str = Field(..., description="LLM model identifier")
+    llm_input_tokens: int = Field(..., description="Actual tokens sent to LLM")
+    llm_output_tokens: int = Field(..., description="Tokens received from LLM")
+    llm_latency_ms: float = Field(..., description="LLM inference time in milliseconds")
+
+    # Output serialization metrics
+    raw_output_tokens: int = Field(..., description="Tokens in raw response")
+    optimized_output_tokens: int = Field(..., description="Tokens after serialization")
+    output_compression_ratio: float = Field(..., description="Output compression ratio")
+    serialization_format: Literal["toon", "compact_json", "json"] = Field(..., description="Final output format")
+
+    # Performance metrics
+    total_latency_ms: float = Field(..., description="End-to-end latency")
+    compression_latency_ms: float = Field(0.0, description="Time spent on compression")
+    serialization_latency_ms: float = Field(0.0, description="Time spent on serialization")
+
+    # Cost metrics
+    estimated_cost_usd: Optional[float] = Field(None, description="Estimated API cost")
+    cost_savings_usd: Optional[float] = Field(None, description="Cost savings from compression")
+
+    # Efficiency metrics
+    efficiency_delta: int = Field(..., description="Net token savings (raw_input - optimized_input)")
+    total_token_savings: int = Field(..., description="Total tokens saved (input + output)")
+    compression_overhead_tokens: int = Field(0, description="Tokens used by compression itself")
+
+    # Quality metrics
+    compression_success: bool = Field(True, description="Whether compression completed successfully")
+    error_message: Optional[str] = Field(None, description="Error message if compression failed")
+
+    # Additional metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    def calculate_savings_percentage(self) -> float:
+        """Calculate total token savings as percentage."""
+        total_raw = self.raw_input_tokens + self.raw_output_tokens
+        if total_raw == 0:
+            return 0.0
+        return (self.total_token_savings / total_raw) * 100
+
+
 class AgentRequest(BaseModel):
     """
     Schema for incoming agent requests.
