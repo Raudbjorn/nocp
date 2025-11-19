@@ -5,9 +5,8 @@ import os
 import sys
 import time
 from datetime import datetime
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
-
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 from nocp.core.cache import LRUCache, CacheConfig
 from nocp.core.act import ToolExecutor
 from nocp.models.contracts import ToolRequest, ToolResult, ToolType
