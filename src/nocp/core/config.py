@@ -122,6 +122,20 @@ class ProxyConfig(BaseSettings):
         description="Threshold for drift detection warning (negative delta trend)"
     )
 
+    # Log Rotation Configuration
+    log_file: Optional[Path] = Field(
+        default=Path("./logs/nocp.log"),
+        description="Path to main application log file"
+    )
+    log_max_bytes: int = Field(
+        default=10 * 1024 * 1024,  # 10MB
+        description="Maximum log file size before rotation"
+    )
+    log_backup_count: int = Field(
+        default=5,
+        description="Number of backup log files to keep"
+    )
+
     # Multi-Cloud Configuration (LiteLLM)
     enable_litellm: bool = Field(
         default=True,
@@ -257,13 +271,22 @@ class ProxyConfig(BaseSettings):
         return 0.0
 
     def ensure_log_directory(self) -> None:
-        """Ensure the metrics log directory exists."""
+        """Ensure the log directories exist."""
+        # Ensure metrics log directory exists
         if (
             self.metrics_log_file is not None
             and isinstance(self.metrics_log_file, Path)
             and self.metrics_log_file.parent is not None
         ):
             self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Ensure main log directory exists
+        if (
+            self.log_file is not None
+            and isinstance(self.log_file, Path)
+            and self.log_file.parent is not None
+        ):
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
 
 # Global configuration instance

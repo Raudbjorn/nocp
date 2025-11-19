@@ -6,8 +6,10 @@ including the Context Watchdog for drift detection.
 """
 
 import json
+import logging
 import structlog
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -16,15 +18,78 @@ from ..models.enums import LogLevel
 from ..models.schemas import ContextMetrics
 
 
+def setup_file_logging(
+    log_file: Path,
+    max_bytes: int = 10 * 1024 * 1024,  # 10MB
+    backup_count: int = 5
+) -> RotatingFileHandler:
+    """
+    Configure rotating file handler for logs.
+
+    Args:
+        log_file: Path to the log file
+        max_bytes: Maximum log file size before rotation (default: 10MB)
+        backup_count: Number of backup files to keep (default: 5)
+
+    Returns:
+        Configured RotatingFileHandler instance
+    """
+    # Ensure log directory exists
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create rotating file handler
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding='utf-8'
+    )
+
+    # Set formatter for the file handler
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+
+    return file_handler
+
+
 def setup_logging() -> None:
     """
     Configure structured logging with appropriate processors.
 
-    Sets up structlog with timestamping, log level filtering, and JSON formatting
-    for production environments.
+    Sets up structlog with timestamping, log level filtering, JSON formatting
+    for production environments, and optional file logging with rotation.
     """
     config = get_config()
 
+    # Configure standard library logging for file output
+    if config.log_file is not None:
+        # Set up rotating file handler
+        file_handler = setup_file_logging(
+            log_file=config.log_file,
+            max_bytes=config.log_max_bytes,
+            backup_count=config.log_backup_count
+        )
+
+        # Configure root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        root_logger.setLevel(getattr(logging, config.log_level.upper(), logging.INFO))
+
+        # Add console handler for console output
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter('%(message)s'))
+        root_logger.addHandler(console_handler)
+
+        # Use stdlib logger factory for file support
+        logger_factory = structlog.stdlib.LoggerFactory()
+    else:
+        # Use print logger factory for console-only mode
+        logger_factory = structlog.PrintLoggerFactory()
+
+    # Configure structlog with appropriate processors
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -39,7 +104,7 @@ def setup_logging() -> None:
             getattr(structlog.stdlib, config.log_level.value, structlog.INFO)
         ),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=logger_factory,
         cache_logger_on_first_use=True,
     )
 
@@ -77,9 +142,20 @@ class MetricsLogger:
         self.enabled = config.enable_metrics_logging
         self.logger = get_logger("metrics")
 
-        # Ensure log directory exists
+        # Ensure log directory exists and set up rotating file handler
         if self.enabled:
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Set up rotating file handler for metrics
+            self.file_handler = RotatingFileHandler(
+                self.log_file,
+                maxBytes=config.log_max_bytes,
+                backupCount=config.log_backup_count,
+                encoding='utf-8'
+            )
+            # Set a simple formatter that only outputs the message
+            # This preserves JSONL format
+            self.file_handler.setFormatter(logging.Formatter('%(message)s'))
 
     def log_transaction(self, metrics: ContextMetrics) -> None:
         """
@@ -103,9 +179,19 @@ class MetricsLogger:
             comp.net_savings > 0 for comp in metrics.compression_operations
         )
 
-        # Write to JSONL file
-        with self.log_file.open("a") as f:
-            f.write(json.dumps(metrics_dict) + "\n")
+        # Write to JSONL file using rotating file handler
+        # Create a log record with just the JSON line
+        log_line = json.dumps(metrics_dict)
+        record = logging.LogRecord(
+            name="metrics",
+            level=logging.INFO,
+            pathname=str(self.log_file),
+            lineno=0,
+            msg=log_line,
+            args=(),
+            exc_info=None
+        )
+        self.file_handler.emit(record)
 
         # Log summary to console
         self.logger.info(
