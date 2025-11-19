@@ -4,7 +4,7 @@
 
 This document outlines the phased development plan for the LLM Proxy Agent (NOCP), with clear milestones, deliverables, and success criteria.
 
-**Latest Update**: Added Phase 6 (MDMAI-Inspired Enterprise Enhancements) based on comprehensive analysis of the MDMAI project, bringing enterprise-grade patterns for multi-provider orchestration, advanced caching, and production security.
+**Latest Update**: Added Phase 7 (Claude Code Manager-Inspired Enhancements) based on analysis of the Rust TUI project, bringing specification-driven development, enhanced token efficiency framework, workflow orchestration, and improved session management patterns.
 
 ---
 
@@ -16,9 +16,10 @@ This document outlines the phased development plan for the LLM Proxy Agent (NOCP
 4. [Phase 3: Optimization and Monitoring](#phase-3-optimization-and-monitoring-week-3-4-days-16-21)
 5. [Phase 4: Production Readiness](#phase-4-production-readiness-week-4-5-days-22-28)
 6. [**Phase 5: Code Quality & Infrastructure**](#phase-5-code-quality--infrastructure-improvements)
-7. [**Phase 6: MDMAI-Inspired Enterprise Enhancements (NEW)**](#phase-6-mdmai-inspired-enterprise-enhancements)
-8. [Release Checklist](#release-checklist)
-9. [Risk Mitigation](#risk-mitigation)
+7. [**Phase 6: MDMAI-Inspired Enterprise Enhancements**](#phase-6-mdmai-inspired-enterprise-enhancements)
+8. [**Phase 7: Claude Code Manager-Inspired Enhancements (NEW)**](#phase-7-claude-code-manager-inspired-enhancements)
+9. [Release Checklist](#release-checklist)
+10. [Risk Mitigation](#risk-mitigation)
 
 ---
 
@@ -4176,6 +4177,562 @@ MDMAI's testing:
 
 ---
 
+## Phase 7: Claude Code Manager-Inspired Enhancements
+
+**Status**: 🆕 NEW - Based on comprehensive analysis of Claude Code Manager (Rust TUI)
+**Goal**: Adopt innovative patterns from Claude Code Manager for enhanced developer experience, token efficiency, and operational excellence.
+
+**Context**: Claude Code Manager demonstrates sophisticated patterns for LLM session management, multi-agent orchestration, and token-efficient serialization. While written in Rust, many architectural patterns translate directly to Python.
+
+**Total Estimated Effort**: 60-75 hours across 8 sub-phases
+
+---
+
+### Phase 7.1: Specification-Driven Development (Priority: HIGH)
+
+**Effort**: 8-10 hours | **Impact**: High - Better design clarity, maintainability
+
+#### Background
+
+Claude Code Manager uses a three-document system:
+1. Specification first (markdown docs)
+2. Tests second (from spec)
+3. Implementation third (follows spec exactly)
+
+This prevents implementation drift and provides single source of truth.
+
+#### Deliverables
+
+**D7.1.1: Specification Framework** (4 hours)
+
+Create comprehensive specs before implementation:
+
+**Directory**: `specs/`
+```
+specs/
+├── ARCHITECTURE.md      # System design patterns
+├── FEATURES.md          # User stories and requirements
+├── DATA_MODELS.md       # All Pydantic schemas
+├── API.md               # Method signatures and contracts
+├── UI_SPEC.md           # CLI interface specifications
+├── TESTING.md           # Test specifications
+└── DEVELOPMENT.md       # Contribution guidelines
+```
+
+**D7.1.2: Spec Validation Script** (2 hours)
+
+**File**: `scripts/validate_specs.py`
+
+- Parse specs for method signatures
+- Compare with actual implementation
+- Report drift between spec and code
+- Integration with CI/CD
+
+**D7.1.3: Spec-First Workflow** (2-4 hours)
+
+- Update development workflow documentation
+- Create spec templates
+- Add pre-commit hooks for spec validation
+- Train team on spec-first approach
+
+**Benefits**:
+- ✅ Single source of truth
+- ✅ Clear developer onboarding
+- ✅ Prevents implementation drift
+- ✅ Better design decisions upfront
+- ✅ Traceable features to requirements
+
+**Acceptance Criteria**:
+- [ ] Specification structure created
+- [ ] Validation script operational
+- [ ] All existing features documented in specs
+- [ ] CI/CD validates spec alignment
+
+---
+
+### Phase 7.2: Enhanced Token Efficiency Framework (Priority: CRITICAL)
+
+**Effort**: 10-12 hours | **Impact**: Critical - 25-50% additional token savings
+
+#### Background
+
+Claude Code Manager's TOON integration includes:
+- Token comparison (JSON vs TOON)
+- Intelligent format selection
+- "10x rule" - use TOON if >10% savings
+- Format recommendation engine
+
+#### Deliverables
+
+**D7.2.1: Token Comparison Framework** (4 hours)
+
+**File**: `src/nocp/optimization/token_comparison.py`
+
+```python
+@dataclass
+class TokenComparison:
+    json_tokens: int
+    toon_tokens: int
+    compact_json_tokens: int
+    yaml_tokens: int
+    token_savings_percent: float
+    size_savings_percent: float
+    recommended_format: str
+
+    def is_toon_recommended(self) -> bool:
+        return self.token_savings_percent > 10.0
+```
+
+**D7.2.2: Format Selection Intelligence** (3 hours)
+
+```python
+class FormatSelector:
+    def select_format(self, data: Any) -> str:
+        """Intelligent format selection based on data structure"""
+        # Check if tabular (array of uniform objects)
+        # Check nesting depth
+        # Check key/value ratio
+        # Consider domain-specific patterns
+        return optimal_format
+```
+
+**D7.2.3: Token Metrics Dashboard** (3-5 hours)
+
+**File**: `src/nocp/monitoring/token_metrics.py`
+
+- Real-time token usage tracking
+- Format efficiency comparison
+- Historical trend analysis
+- Cost savings calculator
+
+**Benefits**:
+- ✅ 25-50% additional token savings
+- ✅ Intelligent format selection
+- ✅ Measurable efficiency improvements
+- ✅ Cost reduction visibility
+
+**Acceptance Criteria**:
+- [ ] Token comparison for all formats
+- [ ] Format recommendation engine
+- [ ] Metrics dashboard operational
+- [ ] 10% improvement in token efficiency
+
+---
+
+### Phase 7.3: Multi-Path Discovery System (Priority: MEDIUM)
+
+**Effort**: 6-8 hours | **Impact**: Medium - Better tool/model discovery
+
+#### Background
+
+Claude Code Manager searches 9+ locations for executables with:
+- Version detection
+- Installation type classification
+- Graceful error handling
+- Deduplication
+
+#### Deliverables
+
+**D7.3.1: Model Discovery Framework** (4 hours)
+
+**File**: `src/nocp/discovery/model_discovery.py`
+
+```python
+class ModelDiscovery:
+    SEARCH_PATHS = [
+        "/usr/local/models",
+        "~/.local/share/models",
+        "~/.cache/huggingface",
+        "~/.ollama/models",
+        "{PROJECT}/models",
+        # ... more paths
+    ]
+
+    def discover_models(self) -> List[ModelInfo]:
+        """Discover all available models across system"""
+        # Search multiple paths
+        # Detect model type and version
+        # Validate model files
+        # Return deduplicated list
+```
+
+**D7.3.2: Tool Discovery System** (2-4 hours)
+
+**File**: `src/nocp/discovery/tool_discovery.py`
+
+- Plugin discovery in multiple directories
+- Tool capability detection
+- Version compatibility checking
+- Dynamic tool registration
+
+**Benefits**:
+- ✅ Automatic model/tool discovery
+- ✅ No manual configuration needed
+- ✅ Support for multiple installations
+- ✅ Version management
+
+**Acceptance Criteria**:
+- [ ] Discovers models in 5+ locations
+- [ ] Version detection working
+- [ ] Tool discovery implemented
+- [ ] Graceful handling of missing resources
+
+---
+
+### Phase 7.4: Workflow Orchestration Engine (Priority: HIGH)
+
+**Effort**: 12-15 hours | **Impact**: High - Complex task automation
+
+#### Background
+
+Claude Code Manager's workflow engine supports:
+- Multi-phase workflows
+- Parallel/sequential execution
+- Agent task dependencies
+- State machine transitions
+- Progress tracking
+
+#### Deliverables
+
+**D7.4.1: Workflow Definition Model** (3 hours)
+
+**File**: `src/nocp/workflows/models.py`
+
+```python
+@dataclass
+class WorkflowDefinition:
+    id: str
+    name: str
+    description: str
+    phases: List[WorkflowPhase]
+    created_at: datetime
+    updated_at: datetime
+
+    def validate(self) -> Result[None, NOCPError]:
+        """Comprehensive validation"""
+
+@dataclass
+class WorkflowPhase:
+    name: str
+    agents: List[AgentTask]
+    parallel: bool  # Sequential or parallel
+    timeout_seconds: int
+```
+
+**D7.4.2: Workflow Executor** (6 hours)
+
+**File**: `src/nocp/workflows/executor.py`
+
+- State machine implementation
+- Dependency resolution
+- Parallel phase execution
+- Progress tracking
+- Error recovery
+
+**D7.4.3: Workflow Templates** (3-6 hours)
+
+Pre-built workflows:
+- Code review workflow
+- Documentation generation
+- Testing pipeline
+- Refactoring workflow
+- Security audit
+
+**Benefits**:
+- ✅ Complex task automation
+- ✅ Reusable workflow templates
+- ✅ Progress visibility
+- ✅ Dependency management
+- ✅ Parallel execution support
+
+**Acceptance Criteria**:
+- [ ] Workflow model validated
+- [ ] Executor handles dependencies
+- [ ] Parallel execution working
+- [ ] 3+ workflow templates
+- [ ] Progress tracking accurate
+
+---
+
+### Phase 7.5: Session Management Enhancement (Priority: HIGH)
+
+**Effort**: 8-10 hours | **Impact**: High - Better session handling
+
+#### Background
+
+Claude Code Manager's session management includes:
+- Multi-installation support
+- Session persistence
+- Configuration inheritance
+- Seamless session launch/resume
+
+#### Deliverables
+
+**D7.5.1: Enhanced Session Model** (3 hours)
+
+**File**: `src/nocp/sessions/enhanced_model.py`
+
+```python
+@dataclass
+class EnhancedSession:
+    id: str
+    executable_path: str
+    version: str
+    install_type: str
+    configuration: Dict[str, Any]
+    history: List[Message]
+    state: SessionState
+    created_at: datetime
+    last_active: datetime
+
+    def fork(self) -> 'EnhancedSession':
+        """Create a fork of current session"""
+
+    def resume(self) -> Result[None, NOCPError]:
+        """Resume from saved state"""
+```
+
+**D7.5.2: Session Persistence Layer** (3 hours)
+
+**File**: `src/nocp/sessions/persistence.py`
+
+- SQLite-based session storage
+- Automatic session recovery
+- History compression
+- Session archival
+
+**D7.5.3: Configuration Hierarchy** (2-4 hours)
+
+Three-tier configuration:
+```
+Global (~/.config/nocp/settings.json)
+  ↓
+Project (.nocp/settings.json)
+  ↓
+Session (runtime overrides)
+```
+
+**Benefits**:
+- ✅ Session continuity
+- ✅ Configuration flexibility
+- ✅ Multi-project support
+- ✅ Session forking/branching
+
+**Acceptance Criteria**:
+- [ ] Sessions persist across restarts
+- [ ] Configuration hierarchy working
+- [ ] Session forking implemented
+- [ ] History compression operational
+
+---
+
+### Phase 7.6: Comprehensive CLI Enhancement (Priority: MEDIUM)
+
+**Effort**: 6-8 hours | **Impact**: Medium - Better developer experience
+
+#### Background
+
+Claude Code Manager's CLI features:
+- Discoverable commands
+- Rich help with examples
+- Command preview
+- Immediate feedback
+
+#### Deliverables
+
+**D7.6.1: Rich CLI with Typer** (3 hours)
+
+**File**: `src/nocp/cli_enhanced.py`
+
+```python
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress
+
+app = typer.Typer(
+    help="NOCP - Token-Optimized LLM Orchestration",
+    rich_markup_mode="rich"
+)
+
+@app.command()
+def discover(
+    models: bool = typer.Option(False, "--models", help="Discover models"),
+    tools: bool = typer.Option(False, "--tools", help="Discover tools")
+):
+    """Discover available resources"""
+```
+
+**D7.6.2: Interactive Mode Enhancements** (3-5 hours)
+
+- Command history with arrow keys
+- Auto-completion for commands
+- Syntax highlighting for output
+- Progress bars for long operations
+- Live token counting display
+
+**Benefits**:
+- ✅ Better discoverability
+- ✅ Rich visual feedback
+- ✅ Improved productivity
+- ✅ Professional appearance
+
+**Acceptance Criteria**:
+- [ ] Rich help implemented
+- [ ] Progress bars working
+- [ ] Auto-completion operational
+- [ ] Interactive mode enhanced
+
+---
+
+### Phase 7.7: Advanced Validation Framework (Priority: LOW)
+
+**Effort**: 4-5 hours | **Impact**: Low - Better data integrity
+
+#### Background
+
+Claude Code Manager uses comprehensive validation:
+- Recursive validation
+- Meaningful error messages
+- Pre-flight checks
+- Helper methods
+
+#### Deliverables
+
+**D7.7.1: Validation Decorators** (2 hours)
+
+**File**: `src/nocp/validation/decorators.py`
+
+```python
+def validate_on_init(cls):
+    """Decorator to validate on instantiation"""
+
+def validate_on_call(func):
+    """Decorator to validate function inputs"""
+```
+
+**D7.7.2: Validation Rules Engine** (2-3 hours)
+
+- Declarative validation rules
+- Custom validators
+- Cross-field validation
+- Async validation support
+
+**Benefits**:
+- ✅ Data integrity guaranteed
+- ✅ Early error detection
+- ✅ Better error messages
+- ✅ Reduced debugging time
+
+---
+
+### Phase 7.8: Build System Enhancement (Priority: LOW)
+
+**Effort**: 4-5 hours | **Impact**: Low - Better development workflow
+
+#### Background
+
+Claude Code Manager's build.sh provides 30+ commands in categories.
+
+#### Deliverables
+
+**D7.8.1: Unified Build Script** (2 hours)
+
+**File**: `build.py`
+
+```python
+#!/usr/bin/env python3
+"""Unified build system for NOCP"""
+
+commands = {
+    "test": run_tests,
+    "lint": run_linters,
+    "format": run_formatters,
+    "ci": run_ci_pipeline,
+    "release": build_release,
+}
+```
+
+**D7.8.2: Pre-flight Checks** (2-3 hours)
+
+- Git status warnings
+- Dependency verification
+- Environment validation
+- Configuration checks
+
+**Benefits**:
+- ✅ Single entry point
+- ✅ Consistent workflows
+- ✅ Reduced errors
+- ✅ Faster development
+
+---
+
+## Phase 7 Implementation Summary
+
+### Total Effort: 60-75 hours
+
+**Priority Breakdown**:
+
+- **CRITICAL** (10-12 hours):
+  - Token efficiency framework
+
+- **HIGH** (34-43 hours):
+  - Specification-driven development: 8-10 hours
+  - Workflow orchestration: 12-15 hours
+  - Session management: 8-10 hours
+  - CLI enhancements: 6-8 hours
+
+- **MEDIUM** (6-8 hours):
+  - Multi-path discovery: 6-8 hours
+
+- **LOW** (8-10 hours):
+  - Validation framework: 4-5 hours
+  - Build system: 4-5 hours
+
+### Key Benefits
+
+1. **Token Efficiency**: Additional 25-50% savings with intelligent format selection
+2. **Developer Experience**: Specification-first development, rich CLI
+3. **Operational Excellence**: Workflow orchestration, session management
+4. **Discovery & Flexibility**: Auto-discovery of models and tools
+5. **Quality Assurance**: Comprehensive validation, spec alignment
+
+### Implementation Timeline
+
+**Month 1**: Foundation
+- Week 1-2: Specification framework
+- Week 3-4: Token efficiency framework
+
+**Month 2**: Core Features
+- Week 5-6: Workflow orchestration
+- Week 7-8: Session management
+
+**Month 3**: Polish
+- Week 9: Multi-path discovery
+- Week 10: CLI enhancements
+- Week 11-12: Validation and build system
+
+### Success Metrics
+
+- [ ] 25% additional token savings achieved
+- [ ] All features have specifications
+- [ ] Workflow templates in use
+- [ ] Session persistence operational
+- [ ] Model/tool auto-discovery working
+- [ ] Rich CLI improves productivity
+
+### Risk Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Spec-code drift | Medium | Medium | Automated validation, CI/CD checks |
+| Token optimization complexity | Low | High | Incremental implementation, benchmarking |
+| Workflow complexity | Medium | Medium | Start with simple templates, iterate |
+| Session migration | Low | Low | Backward compatibility, migration scripts |
+
+---
+
 ## Release Checklist
 
 ### MVP Release (v0.1.0)
@@ -4236,9 +4793,15 @@ MDMAI's testing:
 | **Phase 6: Async migration bugs** | **Medium** | **High** | **Comprehensive testing, gradual rollout** |
 | **Phase 6: Security false positives** | **Low** | **Low** | **Configurable validation rules** |
 | **Phase 6: Monitoring overhead** | **Low** | **Low** | **Configurable metrics, sampling rates** |
+| **Phase 7: Spec-code drift** | **Medium** | **Medium** | **Automated validation, CI/CD integration** |
+| **Phase 7: Token optimization complexity** | **Low** | **High** | **Incremental implementation, benchmarking** |
+| **Phase 7: Workflow complexity** | **Medium** | **Medium** | **Start with simple templates, iterate** |
+| **Phase 7: Session migration** | **Low** | **Low** | **Backward compatibility, migration scripts** |
 
 ---
 
 **Next**: See `04-COMPONENT-SPECS.md` for detailed implementation specifications.
 
 **Phase 5 Reference**: See this document (03-DEVELOPMENT-ROADMAP.md) for comprehensive Phase 5 details.
+**Phase 6 Reference**: See this document for MDMAI-inspired enterprise enhancements.
+**Phase 7 Reference**: See this document for Claude Code Manager-inspired patterns and techniques.
