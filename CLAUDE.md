@@ -60,6 +60,7 @@ nocp/
 │   │   ├── schemas.py     # Request/response models
 │   │   ├── contracts.py   # Tool contracts
 │   │   ├── context.py     # Context models
+│   │   ├── result.py      # Result type for error handling
 │   │   └── enums.py       # Configuration enums
 │   ├── llm/               # LLM integration
 │   │   ├── client.py      # LiteLLM wrapper
@@ -199,6 +200,124 @@ if result.success:
 else:
     logger.error(result.error)
 ```
+
+#### Result Pattern Overview
+
+The Result type provides explicit error handling inspired by Rust's `Result<T, E>`:
+
+**Key Benefits:**
+- No silent failures - errors are always visible in the return type
+- Chainable operations with `map`, `and_then`, and `or_else`
+- Type-safe error propagation
+- Better error handling documentation through types
+
+**Core Methods:**
+
+```python
+# Creating Results
+result = Result.ok(data)           # Successful result
+result = Result.err("Error msg")   # Failed result
+result = Result.from_optional(value, "Error if None")
+result = Result.from_exception(lambda: risky_operation())
+
+# Unwrapping
+data = result.unwrap()             # Raises if failed
+data = result.unwrap_or(default)   # Returns default if failed
+data = result.unwrap_or_else(lambda: compute_default())
+data = result.expect("Custom error message")  # Like unwrap with custom msg
+
+# Checking state
+if result.is_ok():    # or result.success
+    process(result.data)
+if result.is_err():   # or not result.success
+    handle(result.error)
+
+# Transforming (map)
+result = Result.ok(5).map(lambda x: x * 2)  # Result.ok(10)
+
+# Chaining operations (and_then / flatMap)
+def divide(x: int) -> Result[float]:
+    if x == 0:
+        return Result.err("Division by zero")
+    return Result.ok(100 / x)
+
+result = Result.ok(5).and_then(divide)  # Result.ok(20.0)
+
+# Fallback handling (or_else)
+result = Result.err("Primary failed").or_else(
+    lambda e: Result.ok(fallback_value)
+)
+
+# Warnings (for non-fatal issues)
+result = Result.ok(data)
+result.add_warning("Deprecated API used")
+```
+
+**Common Patterns:**
+
+```python
+# 1. Validation pipeline
+def validate_and_process(input_data: str) -> Result[dict]:
+    return (
+        parse_input(input_data)
+        .and_then(validate_schema)
+        .and_then(process_data)
+        .and_then(save_to_db)
+    )
+
+# 2. Fallback chain
+def fetch_data(key: str) -> Result[dict]:
+    return (
+        fetch_from_cache(key)
+        .or_else(lambda _: fetch_from_primary_db(key))
+        .or_else(lambda _: fetch_from_backup_db(key))
+    )
+
+# 3. Batch processing with partial failures
+def process_batch(items: List[str]) -> Result[dict]:
+    results = []
+    for item in items:
+        result = process_item(item)
+        if result.is_err():
+            # Log but continue
+            logger.warning(f"Failed: {result.error}")
+        else:
+            results.append(result.data)
+
+    return Result.ok({"processed": results})
+
+# 4. Safe tool execution wrapper
+def safe_tool_call(tool_name: str, **kwargs) -> Result[dict]:
+    return Result.from_exception(
+        lambda: execute_tool(tool_name, **kwargs),
+        error_prefix=f"Tool {tool_name} failed"
+    )
+```
+
+**When to Use Result:**
+- Tool execution that may fail
+- Data validation pipelines
+- External API calls
+- Configuration loading
+- Any operation where errors are expected and should be handled explicitly
+
+**Migration Guide:**
+
+```python
+# Before (exception-based)
+def old_function(x: int) -> dict:
+    if x < 0:
+        raise ValueError("Negative input")
+    return {"value": x * 2}
+
+# After (Result-based)
+def new_function(x: int) -> Result[dict]:
+    if x < 0:
+        return Result.err("Negative input")
+    return Result.ok({"value": x * 2})
+```
+
+See `examples/demo_result_pattern.py` for comprehensive examples.
 
 ### Logging
 
