@@ -393,7 +393,7 @@ class HighEfficiencyProxyAgent:
                 max_output_tokens=self.config.max_output_tokens,
                 temperature=0.7,
             )
-            response = self.model.generate_content(
+            response = self.model.generate_content(  # type: ignore[assignment]
                 messages,
                 tools=tool_schemas or None,
                 generation_config=generation_config,
@@ -455,13 +455,13 @@ class HighEfficiencyProxyAgent:
                     max_output_tokens=self.config.max_output_tokens,
                     temperature=0.7,
                 )
-                final_response = self.model.generate_content(
+                final_response = self.model.generate_content(  # type: ignore[assignment]
                     self._format_messages_for_llm(transient_ctx, persistent_ctx),
                     generation_config=generation_config,
                 )
-                response_text = final_response.text
+                response_text = final_response.text  # type: ignore[attr-defined]
             else:
-                response_text = response.text
+                response_text = response.text  # type: ignore[attr-defined]
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
