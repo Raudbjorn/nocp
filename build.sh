@@ -146,7 +146,9 @@ check_merge_status() {
     if [ -n "$merge_base" ]; then
         # Check if there are conflicting files (this is the expensive part, so we limit it)
         local conflicts=$(git merge-tree "$merge_base" "$current_branch" "$default_branch" 2>/dev/null | grep -c "<<<<<<< " 2>/dev/null || echo "0")
-        if [[ -n "$conflicts" && "$conflicts" -gt 0 ]]; then
+        # Remove any whitespace/newlines from conflicts count
+        conflicts=$(echo "$conflicts" | tr -d '\n\r\t ')
+        if [[ "$conflicts" =~ ^[0-9]+$ ]] && [ "$conflicts" -gt 0 ]; then
             warnings_ref+=("⚠️ Branch '$current_branch' may have merge conflicts with '$default_branch' ($conflicts potential conflicts)")
         fi
     fi
@@ -235,7 +237,9 @@ check_github_status() {
 
     # Check for PRs that need review (assigned to you)
     local review_prs=$(gh pr list --state open --review-requested @me --json number 2>/dev/null | jq length 2>/dev/null || echo "0")
-    if [[ -n "$review_prs" && "$review_prs" -gt 0 ]]; then
+    # Remove any whitespace/newlines
+    review_prs=$(echo "$review_prs" | tr -d '\n\r\t ')
+    if [[ "$review_prs" =~ ^[0-9]+$ ]] && [ "$review_prs" -gt 0 ]; then
         warnings_ref+=("👀 You have $review_prs pull request(s) awaiting your review")
     fi
 
@@ -316,6 +320,20 @@ detect_python_manager() {
     fi
 }
 
+# Helper function: Install Python package with extras fallback
+install_python_package() {
+    local install_cmd="$1"
+    local manager_name="$2"
+
+    if ! $install_cmd -e ".[dev]" --quiet 2>&1; then
+        print_warning "Failed to install with dev extras, trying base installation..."
+        if ! $install_cmd -e . --quiet 2>&1; then
+            print_error "Failed to install Python dependencies with $manager_name"
+            exit 1
+        fi
+    fi
+}
+
 # Setup Python virtual environment
 setup_python_env() {
     local manager=$1
@@ -328,13 +346,7 @@ setup_python_env() {
                 uv venv
             fi
             print_info "Installing Python dependencies..."
-            if ! uv pip install -e ".[dev]" --quiet 2>&1; then
-                print_warning "Failed to install with dev extras, trying base installation..."
-                if ! uv pip install -e . --quiet 2>&1; then
-                    print_error "Failed to install Python dependencies with uv"
-                    exit 1
-                fi
-            fi
+            install_python_package "uv pip install" "uv"
             ;;
         poetry)
             print_info "Installing Python dependencies with Poetry..."
@@ -348,13 +360,7 @@ setup_python_env() {
             source .venv/bin/activate
             print_info "Installing Python dependencies with pip..."
             pip install --upgrade pip --quiet
-            if ! pip install -e ".[dev]" --quiet 2>&1; then
-                print_warning "Failed to install with dev extras, trying base installation..."
-                if ! pip install -e . --quiet 2>&1; then
-                    print_error "Failed to install Python dependencies with pip"
-                    exit 1
-                fi
-            fi
+            install_python_package "pip install" "pip"
             ;;
     esac
 }
@@ -433,6 +439,27 @@ build_all() {
     print_success "NOCP build complete"
 }
 
+# Helper function: Run pytest with proper exit code handling
+run_pytest_with_handling() {
+    local test_path="$1"
+    local test_type="$2"
+    local pytest_args="${3:-}"
+
+    run_python_cmd "pytest $test_path -v $pytest_args"
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        print_success "$test_type passed"
+        return 0
+    elif [ $exit_code -eq 5 ]; then
+        print_warning "No $test_type found"
+        return 0
+    else
+        print_error "$test_type failed"
+        exit 1
+    fi
+}
+
 # Testing
 run_tests() {
     print_section "Running Tests"
@@ -454,32 +481,14 @@ run_integration_tests() {
     print_section "Running Integration Tests"
 
     print_info "Running integration tests..."
-    if ! run_python_cmd "pytest tests/integration/ -v"; then
-        # pytest exits with 5 if no tests are found
-        if [ $? -eq 5 ]; then
-            print_warning "No integration tests found"
-        else
-            print_error "Integration tests failed"
-            exit 1
-        fi
-    fi
-    print_success "Integration tests passed"
+    run_pytest_with_handling "tests/integration/" "Integration tests"
 }
 
 run_e2e_tests() {
     print_section "Running End-to-End Tests"
 
     print_info "Running e2e tests..."
-    if ! run_python_cmd "pytest tests/e2e/ -v"; then
-        # pytest exits with 5 if no tests are found
-        if [ $? -eq 5 ]; then
-            print_warning "No e2e tests found"
-        else
-            print_error "End-to-end tests failed"
-            exit 1
-        fi
-    fi
-    print_success "E2E tests passed"
+    run_pytest_with_handling "tests/e2e/" "End-to-end tests"
 }
 
 # Linting and formatting
@@ -563,16 +572,7 @@ run_benchmarks() {
     fi
 
     print_info "Running performance benchmarks..."
-    if ! run_python_cmd "python -m pytest benchmarks/ -v --benchmark-only"; then
-        # pytest exits with 5 if no tests are found
-        if [ $? -eq 5 ]; then
-            print_warning "No benchmarks found"
-        else
-            print_error "Benchmarks failed"
-            exit 1
-        fi
-    fi
-    print_success "Benchmarks completed"
+    run_pytest_with_handling "benchmarks/" "Benchmarks" "--benchmark-only"
 }
 
 # Documentation
