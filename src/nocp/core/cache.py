@@ -1,7 +1,7 @@
 """
 Cache Module: Tool Result Caching
 
-Provides in-memory LRU caching and optional Redis integration for distributed caching.
+Provides in-memory LRU caching and optional ChromaDB integration for distributed caching.
 """
 
 import asyncio
@@ -264,171 +264,199 @@ class LRUCache(CacheBackend):
         await self.set_async(key, result, ttl_seconds)
 
 
-class RedisCache(CacheBackend):
+class ChromaDBCache(CacheBackend):
     """
-    Redis-backed distributed cache for tool results.
+    ChromaDB-backed distributed cache for tool results.
 
     Features:
     - Distributed caching across multiple processes/servers
-    - Automatic TTL support
+    - Automatic TTL support with metadata tracking
     - JSON serialization/deserialization
-    - Async support with aioredis
+    - Async support with asyncio
 
     Example:
-        cache = RedisCache(host="localhost", port=6379)
+        cache = ChromaDBCache(persist_directory="./chroma_cache")
         cache.set("key1", tool_result)
         result = cache.get("key1")
     """
 
     def __init__(
         self,
-        host: str = "localhost",
-        port: int = 6379,
-        db: int = 0,
-        password: Optional[str] = None,
+        persist_directory: Optional[str] = None,
+        collection_name: str = "nocp_cache",
         default_ttl: Optional[int] = 3600,
-        key_prefix: str = "nocp:cache:"
     ):
         """
-        Initialize Redis cache.
+        Initialize ChromaDB cache.
 
         Args:
-            host: Redis host
-            port: Redis port
-            db: Redis database number
-            password: Redis password (if required)
+            persist_directory: Directory to persist ChromaDB data (None = in-memory)
+            collection_name: Name of the ChromaDB collection
             default_ttl: Default time-to-live in seconds
-            key_prefix: Prefix for all cache keys
         """
         try:
-            import redis
-            import redis.asyncio as aioredis
+            import chromadb
         except ImportError:
             raise ImportError(
-                "Redis support requires 'redis' package. "
-                "Install with: pip install redis"
+                "ChromaDB support requires 'chromadb' package. "
+                "Install with: pip install chromadb"
             )
 
-        self._redis = redis.Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            decode_responses=False  # We'll handle serialization
-        )
+        # Create ChromaDB client
+        if persist_directory:
+            self._client = chromadb.PersistentClient(path=persist_directory)
+            logger.info(f"Using persistent ChromaDB at {persist_directory}")
+        else:
+            self._client = chromadb.Client()
+            logger.info("Using in-memory ChromaDB")
 
-        self._aioredis = aioredis.Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            decode_responses=False
+        # Get or create collection
+        self._collection = self._client.get_or_create_collection(
+            name=collection_name,
+            metadata={"description": "NOCP tool result cache"}
         )
 
         self._default_ttl = default_ttl
-        self._key_prefix = key_prefix
+        self._collection_name = collection_name
 
-        # Test connection
-        try:
-            self._redis.ping()
-            logger.info(f"Connected to Redis at {host}:{port}")
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+        # Statistics
+        self._hits = 0
+        self._misses = 0
 
-    def _make_key(self, key: str) -> str:
-        """Add prefix to cache key."""
-        return f"{self._key_prefix}{key}"
+        logger.info(f"ChromaDB cache initialized with collection '{collection_name}'")
 
-    def _serialize(self, result: ToolResult) -> bytes:
-        """Serialize ToolResult to bytes."""
-        data = result.model_dump(mode='json')
-        return json.dumps(data).encode('utf-8')
+    def _serialize(self, result: ToolResult) -> Dict[str, Any]:
+        """Serialize ToolResult to dictionary."""
+        return result.model_dump(mode='json')
 
-    def _deserialize(self, data: bytes) -> ToolResult:
-        """Deserialize bytes to ToolResult."""
-        obj = json.loads(data.decode('utf-8'))
-        return ToolResult(**obj)
+    def _deserialize(self, data: Dict[str, Any]) -> ToolResult:
+        """Deserialize dictionary to ToolResult."""
+        return ToolResult(**data)
+
+    def _is_expired(self, metadata: Dict[str, Any]) -> bool:
+        """Check if a cache entry has expired based on metadata."""
+        if metadata.get("expires_at") is None:
+            return False
+        expires_at = float(metadata["expires_at"])
+        return time.time() > expires_at
 
     def get(self, key: str) -> Optional[ToolResult]:
-        """Get a value from Redis cache."""
-        redis_key = self._make_key(key)
-        data = self._redis.get(redis_key)
+        """Get a value from ChromaDB cache."""
+        try:
+            result = self._collection.get(ids=[key], include=["metadatas", "documents"])
 
-        if data is None:
-            logger.debug(f"Cache miss for key: {key[:16]}...")
+            if not result["ids"]:
+                self._misses += 1
+                logger.debug(f"Cache miss for key: {key[:16]}...")
+                return None
+
+            # Check expiration
+            metadata = result["metadatas"][0]
+            if self._is_expired(metadata):
+                self.delete(key)
+                self._misses += 1
+                logger.debug(f"Cache expired for key: {key[:16]}...")
+                return None
+
+            # Deserialize from metadata
+            cache_data = json.loads(metadata["tool_result"])
+            self._hits += 1
+            logger.debug(f"Cache hit for key: {key[:16]}...")
+            return self._deserialize(cache_data)
+
+        except Exception as e:
+            logger.warning(f"Error getting cache key {key[:16]}: {e}")
+            self._misses += 1
             return None
 
-        logger.debug(f"Cache hit for key: {key[:16]}...")
-        return self._deserialize(data)
-
     def set(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
-        """Set a value in Redis cache with optional TTL."""
-        redis_key = self._make_key(key)
-        data = self._serialize(value)
+        """Set a value in ChromaDB cache with optional TTL."""
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
+        expires_at = None if ttl is None else time.time() + ttl
 
-        if ttl is not None:
-            self._redis.setex(redis_key, ttl, data)
-        else:
-            self._redis.set(redis_key, data)
+        # Serialize ToolResult to JSON string for metadata storage
+        serialized_data = self._serialize(value)
 
-        logger.debug(f"Cached result in Redis for key: {key[:16]}... (TTL: {ttl}s)")
+        metadata = {
+            "tool_result": json.dumps(serialized_data),
+            "created_at": str(time.time()),
+            "expires_at": str(expires_at) if expires_at else "null",
+            "ttl": str(ttl) if ttl else "null"
+        }
+
+        try:
+            # Check if key exists
+            existing = self._collection.get(ids=[key])
+
+            if existing["ids"]:
+                # Update existing entry
+                self._collection.update(
+                    ids=[key],
+                    metadatas=[metadata],
+                    documents=[f"cache_entry_{key[:16]}"]
+                )
+            else:
+                # Add new entry
+                self._collection.add(
+                    ids=[key],
+                    metadatas=[metadata],
+                    documents=[f"cache_entry_{key[:16]}"]
+                )
+
+            logger.debug(f"Cached result in ChromaDB for key: {key[:16]}... (TTL: {ttl}s)")
+
+        except Exception as e:
+            logger.error(f"Error setting cache key {key[:16]}: {e}")
 
     def delete(self, key: str) -> None:
-        """Delete a value from Redis cache."""
-        redis_key = self._make_key(key)
-        self._redis.delete(redis_key)
-        logger.debug(f"Deleted Redis cache entry: {key[:16]}...")
+        """Delete a value from ChromaDB cache."""
+        try:
+            self._collection.delete(ids=[key])
+            logger.debug(f"Deleted ChromaDB cache entry: {key[:16]}...")
+        except Exception as e:
+            logger.warning(f"Error deleting cache key {key[:16]}: {e}")
 
     def clear(self) -> None:
-        """Clear all cached values with the key prefix."""
-        pattern = f"{self._key_prefix}*"
-        # Use SCAN to avoid blocking the server, as KEYS can be slow on large databases
-        keys = list(self._redis.scan_iter(pattern))
-        if keys:
-            self._redis.delete(*keys)
-            logger.info(f"Cleared {len(keys)} Redis cache entries")
+        """Clear all cached values by deleting and recreating the collection."""
+        try:
+            # Get count before deletion
+            count = self._collection.count()
+
+            # Delete the collection
+            self._client.delete_collection(name=self._collection_name)
+
+            # Recreate the collection
+            self._collection = self._client.get_or_create_collection(
+                name=self._collection_name,
+                metadata={"description": "NOCP tool result cache"}
+            )
+
+            logger.info(f"Cleared {count} ChromaDB cache entries")
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
 
     def stats(self) -> Dict[str, Any]:
-        """Get Redis cache statistics."""
-        info = self._redis.info("stats")
-        pattern = f"{self._key_prefix}*"
-        key_count = len(self._redis.keys(pattern))
+        """Get ChromaDB cache statistics."""
+        total_requests = self._hits + self._misses
+        hit_rate = (self._hits / total_requests) if total_requests > 0 else 0.0
 
         return {
-            "backend": "redis",
-            "size": key_count,
-            "keyspace_hits": info.get("keyspace_hits", 0),
-            "keyspace_misses": info.get("keyspace_misses", 0),
+            "backend": "chromadb",
+            "size": self._collection.count(),
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
             "default_ttl": self._default_ttl,
-            "connected": True
+            "collection_name": self._collection_name
         }
 
     async def get_async(self, key: str) -> Optional[ToolResult]:
-        """Async version of get using aioredis."""
-        redis_key = self._make_key(key)
-        data = await self._aioredis.get(redis_key)
-
-        if data is None:
-            logger.debug(f"Cache miss for key: {key[:16]}...")
-            return None
-
-        logger.debug(f"Cache hit for key: {key[:16]}...")
-        return self._deserialize(data)
+        """Async version of get (delegates to sync with asyncio.to_thread)."""
+        return await asyncio.to_thread(self.get, key)
 
     async def set_async(self, key: str, value: ToolResult, ttl_seconds: Optional[int] = None) -> None:
-        """Async version of set using aioredis."""
-        redis_key = self._make_key(key)
-        data = self._serialize(value)
-        ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
-
-        if ttl is not None:
-            await self._aioredis.setex(redis_key, ttl, data)
-        else:
-            await self._aioredis.set(redis_key, data)
-
-        logger.debug(f"Cached result in Redis for key: {key[:16]}... (TTL: {ttl}s)")
+        """Async version of set (delegates to sync with asyncio.to_thread)."""
+        await asyncio.to_thread(self.set, key, value, ttl_seconds)
 
     def _generate_key(self, request: ToolRequest) -> str:
         """Generate a cache key from a ToolRequest."""
@@ -470,32 +498,26 @@ class CacheConfig:
         backend: str = "memory",
         max_size: int = 1000,
         default_ttl: Optional[int] = 3600,
-        redis_host: str = "localhost",
-        redis_port: int = 6379,
-        redis_db: int = 0,
-        redis_password: Optional[str] = None,
+        chromadb_persist_dir: Optional[str] = None,
+        chromadb_collection_name: str = "nocp_cache",
         enabled: bool = True
     ):
         """
         Initialize cache configuration.
 
         Args:
-            backend: Cache backend ("memory" or "redis")
+            backend: Cache backend ("memory" or "chromadb")
             max_size: Max size for in-memory cache
             default_ttl: Default TTL in seconds (None = no expiration)
-            redis_host: Redis host
-            redis_port: Redis port
-            redis_db: Redis database number
-            redis_password: Redis password
+            chromadb_persist_dir: ChromaDB persistence directory (None = in-memory)
+            chromadb_collection_name: ChromaDB collection name
             enabled: Enable/disable caching
         """
         self.backend = backend
         self.max_size = max_size
         self.default_ttl = default_ttl
-        self.redis_host = redis_host
-        self.redis_port = redis_port
-        self.redis_db = redis_db
-        self.redis_password = redis_password
+        self.chromadb_persist_dir = chromadb_persist_dir
+        self.chromadb_collection_name = chromadb_collection_name
         self.enabled = enabled
 
     def create_backend(self) -> Optional[CacheBackend]:
@@ -512,13 +534,11 @@ class CacheConfig:
         if self.backend == "memory":
             logger.info(f"Using in-memory LRU cache (max_size={self.max_size}, ttl={self.default_ttl}s)")
             return LRUCache(max_size=self.max_size, default_ttl=self.default_ttl)
-        elif self.backend == "redis":
-            logger.info(f"Using Redis cache at {self.redis_host}:{self.redis_port}")
-            return RedisCache(
-                host=self.redis_host,
-                port=self.redis_port,
-                db=self.redis_db,
-                password=self.redis_password,
+        elif self.backend == "chromadb":
+            logger.info(f"Using ChromaDB cache at {self.chromadb_persist_dir or 'in-memory'}")
+            return ChromaDBCache(
+                persist_directory=self.chromadb_persist_dir,
+                collection_name=self.chromadb_collection_name,
                 default_ttl=self.default_ttl
             )
         else:

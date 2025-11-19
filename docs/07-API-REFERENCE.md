@@ -299,7 +299,7 @@ Analyze Pydantic model to select optimal serialization format.
 
 **Location:** `nocp.core.cache`
 
-Caching layer with in-memory LRU and optional Redis support.
+Caching layer with in-memory LRU and optional ChromaDB support.
 
 #### LRUCache
 
@@ -356,27 +356,34 @@ print(f"Hit rate: {stats['hit_rate']:.2%}")
 print(f"Cache size: {stats['size']}/{stats['max_size']}")
 ```
 
-#### RedisCache
+#### ChromaDBCache
 
-Redis-backed distributed cache for tool results.
+ChromaDB-backed distributed cache for tool results.
 
 **Constructor:**
 ```python
-RedisCache(
-    host: str = "localhost",
-    port: int = 6379,
-    db: int = 0,
-    password: Optional[str] = None,
-    default_ttl: Optional[int] = 3600,
-    key_prefix: str = "nocp:cache:"
+ChromaDBCache(
+    persist_directory: Optional[str] = None,
+    collection_name: str = "nocp_cache",
+    default_ttl: Optional[int] = 3600
 )
 ```
 
-**Requirements:** `pip install redis`
+**Parameters:**
+- `persist_directory` (Optional[str]): Directory to persist ChromaDB data (None = in-memory)
+- `collection_name` (str): Name of the ChromaDB collection
+- `default_ttl` (Optional[int]): Default time-to-live in seconds
+
+**Requirements:** `pip install chromadb`
 
 **Example:**
 ```python
-cache = RedisCache(host="localhost", port=6379)
+# In-memory cache
+cache = ChromaDBCache()
+executor = ToolExecutor(cache=cache)
+
+# Persistent cache
+cache = ChromaDBCache(persist_directory="./chroma_cache")
 executor = ToolExecutor(cache=cache)
 ```
 
@@ -386,11 +393,11 @@ Configuration helper for creating cache backends.
 
 ```python
 config = CacheConfig(
-    backend="memory",  # or "redis"
+    backend="memory",  # or "chromadb"
     max_size=1000,
     default_ttl=3600,
-    redis_host="localhost",
-    redis_port=6379,
+    chromadb_persist_dir="./chroma_cache",
+    chromadb_collection_name="nocp_cache",
     enabled=True
 )
 

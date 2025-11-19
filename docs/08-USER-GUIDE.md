@@ -39,7 +39,7 @@ pip install -e .
 - pydantic >= 2.0
 - google-generativeai >= 0.3.0
 - litellm >= 1.55.0
-- Optional: redis (for distributed caching)
+- Optional: chromadb (for distributed caching)
 
 ### Environment Setup
 
@@ -246,22 +246,23 @@ print(f"Hit rate: {stats['hit_rate']:.2%}")
 print(f"Cache size: {stats['size']}/{stats['max_size']}")
 ```
 
-### Redis Caching (Distributed)
+### ChromaDB Caching (Distributed)
 
 ```python
-from nocp.core.cache import RedisCache
+from nocp.core.cache import ChromaDBCache
 
-# Create Redis cache
-cache = RedisCache(
-    host="localhost",
-    port=6379,
-    db=0,
+# Create ChromaDB cache (persistent)
+cache = ChromaDBCache(
+    persist_directory="./chroma_cache",
+    collection_name="nocp_cache",
     default_ttl=3600
 )
 
 executor = ToolExecutor(cache=cache)
 
-# Now cache is shared across processes/servers!
+# Now cache is shared across processes and persisted to disk!
+# For in-memory distributed cache, omit persist_directory:
+# cache = ChromaDBCache()
 ```
 
 ### Cache Configuration
@@ -271,9 +272,10 @@ from nocp.core.cache import CacheConfig
 
 # Configure via config object
 config = CacheConfig(
-    backend="memory",  # or "redis"
+    backend="memory",  # or "chromadb"
     max_size=5000,
     default_ttl=7200,
+    chromadb_persist_dir="./chroma_cache",
     enabled=True
 )
 
@@ -754,21 +756,22 @@ async def async_tool(param: str) -> dict:
 result = await executor.execute_async(request)  # ← Not execute!
 ```
 
-### Issue: Redis connection errors
+### Issue: ChromaDB initialization errors
 
-**Problem:** RedisCache fails to connect.
+**Problem:** ChromaDBCache fails to initialize.
 
 **Solution:**
 ```python
-# Ensure Redis server is running
-# docker run -d -p 6379:6379 redis
+# Ensure chromadb is installed
+# pip install chromadb
 
-# Test connection
+# Test initialization
 try:
-    cache = RedisCache(host="localhost", port=6379)
-    print("Connected!")
+    cache = ChromaDBCache(persist_directory="./chroma_cache")
+    print("ChromaDB cache initialized!")
 except Exception as e:
-    print(f"Connection failed: {e}")
+    print(f"Initialization failed: {e}")
+    # Common fix: ensure write permissions for persist_directory
 ```
 
 ---

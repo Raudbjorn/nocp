@@ -1,5 +1,5 @@
 """
-Tests for the caching layer (LRU cache and Redis cache).
+Tests for the caching layer (LRU cache and ChromaDB cache).
 """
 
 import asyncio
@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from nocp.core.cache import CacheConfig, LRUCache, RedisCache
+from nocp.core.cache import CacheConfig, LRUCache, ChromaDBCache
 from nocp.models.contracts import ToolRequest, ToolResult, ToolType
 
 
@@ -418,31 +418,30 @@ class TestCacheConfig:
             config.create_backend()
 
 
-# Redis tests are optional and require Redis to be running
-class TestRedisCache:
-    """Tests for Redis cache (requires Redis server)."""
+# ChromaDB tests
+class TestChromaDBCache:
+    """Tests for ChromaDB cache."""
 
     @pytest.fixture
-    def redis_available(self):
-        """Check if Redis is available."""
+    def chromadb_available(self):
+        """Check if ChromaDB is available."""
         try:
-            import redis
-            client = redis.Redis(host="localhost", port=6379, socket_connect_timeout=1)
-            client.ping()
+            import chromadb
             return True
         except Exception:
-            pytest.skip("Redis server not available")
+            pytest.skip("ChromaDB not installed")
 
     @pytest.fixture
-    def redis_cache(self, redis_available):
-        """Create Redis cache for testing."""
-        cache = RedisCache(host="localhost", port=6379, db=15)  # Use test DB
+    def chromadb_cache(self, chromadb_available, tmp_path):
+        """Create ChromaDB cache for testing."""
+        # Use tmp_path for persistence to avoid conflicts between tests
+        cache = ChromaDBCache(persist_directory=None, collection_name="test_cache")  # In-memory
         cache.clear()  # Clean up before tests
         yield cache
         cache.clear()  # Clean up after tests
 
-    def test_redis_basic_set_get(self, redis_cache):
-        """Test basic Redis cache operations."""
+    def test_chromadb_basic_set_get(self, chromadb_cache):
+        """Test basic ChromaDB cache operations."""
         result = ToolResult(
             tool_id="test_tool",
             success=True,
@@ -453,15 +452,15 @@ class TestRedisCache:
             token_estimate=10
         )
 
-        redis_cache.set("key1", result)
-        retrieved = redis_cache.get("key1")
+        chromadb_cache.set("key1", result)
+        retrieved = chromadb_cache.get("key1")
 
         assert retrieved is not None
         assert retrieved.tool_id == "test_tool"
         assert retrieved.data == {"result": "test"}
 
-    def test_redis_ttl(self, redis_cache):
-        """Test Redis TTL functionality."""
+    def test_chromadb_ttl(self, chromadb_cache):
+        """Test ChromaDB TTL functionality."""
         result = ToolResult(
             tool_id="test_tool",
             success=True,
@@ -472,19 +471,19 @@ class TestRedisCache:
             token_estimate=10
         )
 
-        redis_cache.set("key1", result, ttl_seconds=1)
+        chromadb_cache.set("key1", result, ttl_seconds=1)
 
         # Should be available immediately
-        assert redis_cache.get("key1") is not None
+        assert chromadb_cache.get("key1") is not None
 
         # Wait for expiration
         time.sleep(1.5)
 
         # Should be expired
-        assert redis_cache.get("key1") is None
+        assert chromadb_cache.get("key1") is None
 
-    def test_redis_by_request(self, redis_cache):
-        """Test Redis cache with ToolRequest."""
+    def test_chromadb_by_request(self, chromadb_cache):
+        """Test ChromaDB cache with ToolRequest."""
         request = ToolRequest(
             tool_id="test_tool",
             tool_type=ToolType.PYTHON_FUNCTION,
@@ -502,15 +501,15 @@ class TestRedisCache:
             token_estimate=10
         )
 
-        redis_cache.set_by_request(request, result)
-        retrieved = redis_cache.get_by_request(request)
+        chromadb_cache.set_by_request(request, result)
+        retrieved = chromadb_cache.get_by_request(request)
 
         assert retrieved is not None
         assert retrieved.data == {"result": "test"}
 
     @pytest.mark.asyncio
-    async def test_redis_async_operations(self, redis_cache):
-        """Test Redis async operations."""
+    async def test_chromadb_async_operations(self, chromadb_cache):
+        """Test ChromaDB async operations."""
         result = ToolResult(
             tool_id="test_tool",
             success=True,
@@ -521,20 +520,21 @@ class TestRedisCache:
             token_estimate=10
         )
 
-        await redis_cache.set_async("key1", result)
-        retrieved = await redis_cache.get_async("key1")
+        await chromadb_cache.set_async("key1", result)
+        retrieved = await chromadb_cache.get_async("key1")
 
         assert retrieved is not None
         assert retrieved.data == {"result": "test"}
 
-    def test_redis_stats(self, redis_cache):
-        """Test Redis statistics."""
-        stats = redis_cache.stats()
+    def test_chromadb_stats(self, chromadb_cache):
+        """Test ChromaDB statistics."""
+        stats = chromadb_cache.stats()
 
-        assert stats["backend"] == "redis"
-        assert stats["connected"] is True
-        assert "keyspace_hits" in stats
-        assert "keyspace_misses" in stats
+        assert stats["backend"] == "chromadb"
+        assert "size" in stats
+        assert "hits" in stats
+        assert "misses" in stats
+        assert "hit_rate" in stats
 
 
 class TestCacheIntegration:

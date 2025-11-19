@@ -105,7 +105,7 @@ class VectorDB:
             ),
             DocumentChunk(
                 id="doc_7",
-                text="Redis caching enables distributed caching across multiple servers.",
+                text="ChromaDB caching enables distributed caching with vector storage capabilities.",
                 metadata={"source": "docs/deployment.md", "page": 6}
             ),
             DocumentChunk(
