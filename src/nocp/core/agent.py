@@ -22,7 +22,7 @@ from ..modules.tool_executor import ToolExecutor
 from ..modules.context_manager import ContextManager
 from ..modules.output_serializer import OutputSerializer
 from ..core.config import get_config
-from ..utils.logging import get_logger, log_metrics, get_metrics_logger
+from ..utils.logging import get_logger, log_metrics, get_metrics_logger, agent_logger
 from ..utils.token_counter import TokenCounter
 from ..llm.client import LLMClient
 from ..llm.router import ModelRouter, RequestComplexity
@@ -152,6 +152,11 @@ class HighEfficiencyProxyAgent:
         start_time = time.perf_counter()
         transaction_id = str(uuid.uuid4())
 
+        agent_logger.log_operation_start(
+            "agent_request",
+            {"transaction_id": transaction_id, "query_preview": request.query[:100]}
+        )
+
         self.logger.info(
             "processing_request",
             transaction_id=transaction_id,
@@ -243,6 +248,18 @@ class HighEfficiencyProxyAgent:
                 compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
+            agent_logger.log_operation_complete(
+                "agent_request",
+                duration_ms=total_latency_ms,
+                details={
+                    "transaction_id": transaction_id,
+                    "input_token_savings": input_token_savings,
+                    "output_token_savings": token_savings,
+                    "compression_ratio": round(metrics.input_compression_ratio, 3),
+                    "tools_used": len(tools_used)
+                }
+            )
+
             return serialized_output, metrics
 
         except Exception as e:
@@ -250,6 +267,11 @@ class HighEfficiencyProxyAgent:
                 "request_processing_failed",
                 transaction_id=transaction_id,
                 error=str(e),
+            )
+            agent_logger.log_operation_error(
+                "agent_request",
+                e,
+                {"transaction_id": transaction_id}
             )
             raise
 
@@ -313,6 +335,7 @@ class HighEfficiencyProxyAgent:
         Returns:
             AgentResponse from the LLM
         """
+        agent_logger.log_operation_start("agent_loop")
         # Compact history if needed
         history_compression = self.context_manager.compact_conversation_history(transient_ctx)
         if history_compression:
@@ -416,6 +439,11 @@ class HighEfficiencyProxyAgent:
 
         # Parse response into AgentResponse schema
         # For now, return a simple response (in production, use structured output)
+        agent_logger.log_operation_complete(
+            "agent_loop",
+            details={"tools_used": len(tools_used), "compressions": len(compression_operations)}
+        )
+
         return AgentResponse(
             answer=response_text,
             tool_results_summary=[f"Used tool: {t}" for t in tools_used],

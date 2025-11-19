@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from rich.console import Console
+
 from ..core.config import get_config
 from ..models.enums import LogLevel
 from ..models.schemas import ContextMetrics
@@ -239,3 +241,92 @@ def log_metrics(metrics: ContextMetrics) -> None:
         metrics: ContextMetrics to log
     """
     get_metrics_logger().log_transaction(metrics)
+
+
+class ComponentLogger:
+    """Base class for component-specific structured logging"""
+
+    def __init__(self, component_name: str):
+        self.logger = structlog.get_logger(component_name)
+        self.component = component_name
+        self.console = Console()
+
+    def log_operation_start(
+        self,
+        operation: str,
+        details: Optional[dict] = None
+    ):
+        """Log operation start with emoji"""
+        self.console.print(
+            f"[cyan]▶[/cyan] [{self.component}] Starting: {operation}"
+        )
+        self.logger.info(
+            f"{operation}_started",
+            component=self.component,
+            **(details or {})
+        )
+
+    def log_operation_complete(
+        self,
+        operation: str,
+        duration_ms: Optional[float] = None,
+        details: Optional[dict] = None
+    ):
+        """Log operation completion"""
+        msg = f"[green]✅[/green] [{self.component}] Completed: {operation}"
+        if duration_ms is not None:
+            msg += f" ({duration_ms:.0f}ms)"
+
+        self.console.print(msg)
+
+        log_data = details.copy() if details else {}
+        log_data["component"] = self.component
+        if duration_ms is not None:
+            log_data["duration_ms"] = duration_ms
+
+        self.logger.info(f"{operation}_completed", **log_data)
+
+    def log_operation_error(
+        self,
+        operation: str,
+        error: Exception,
+        details: Optional[dict] = None
+    ):
+        """Log operation error"""
+        from rich.traceback import Traceback
+
+        self.console.print(
+            f"[red]❌[/red] [{self.component}] Failed: {operation}"
+        )
+        trace = Traceback.from_exception(
+            type(error),
+            error,
+            error.__traceback__,
+        )
+        self.console.print(trace)
+
+        log_data = details.copy() if details else {}
+        log_data.update({
+            "component": self.component,
+            "error_type": type(error).__name__,
+            "error_message": str(error)
+        })
+
+        self.logger.error(f"{operation}_failed", **log_data, exc_info=error)
+
+    def log_metric(self, metric_name: str, value: Any, unit: str = ""):
+        """Log a metric"""
+        self.logger.info(
+            "metric",
+            component=self.component,
+            metric=metric_name,
+            value=value,
+            unit=unit
+        )
+
+
+# Create component-specific loggers
+act_logger = ComponentLogger("act")
+assess_logger = ComponentLogger("assess")
+articulate_logger = ComponentLogger("articulate")
+agent_logger = ComponentLogger("agent")
