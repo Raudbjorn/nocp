@@ -14,7 +14,7 @@ from typing import List, Optional, Literal
 import google.generativeai as genai
 
 from ..models.schemas import ToolExecutionResult, CompressionResult
-from ..models.context import TransientContext, ConversationMessage
+from ..models.context import TransientContext, ConversationMessage, PersistentContext
 from ..core.config import get_config
 from ..utils.logging import get_logger
 from ..utils.token_counter import TokenCounter
@@ -287,7 +287,8 @@ Provide a structured summary with:
 
             return summary, compression_cost
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
             self.logger.error(
                 "knowledge_distillation_failed",
                 error=str(e),
@@ -335,19 +336,30 @@ Summary:
 
             return summary, compression_cost
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
             self.logger.error("history_compaction_failed", error=str(e))
             return content, 0
 
     def compact_conversation_history(
         self,
         transient_ctx: TransientContext,
+        persistent_ctx: Optional['PersistentContext'] = None,
+        keep_recent: int = 5,
     ) -> Optional[CompressionResult]:
         """
-        Compact conversation history if it exceeds threshold.
+        Compact conversation history with roll-up summarization.
+
+        This implements an incremental summarization strategy:
+        1. If persistent context has existing summary, include it
+        2. Summarize old messages (excluding recent N)
+        3. Update persistent context with new rolled-up summary
+        4. Replace old messages with compact summary message
 
         Args:
             transient_ctx: Transient context with conversation history
+            persistent_ctx: Optional persistent context for roll-up summaries
+            keep_recent: Number of recent messages to keep in full
 
         Returns:
             CompressionResult if compaction was applied, None otherwise
@@ -360,7 +372,6 @@ Summary:
             return None
 
         # Extract old messages (keep recent N messages)
-        keep_recent = 5
         if len(transient_ctx.conversation_history) <= keep_recent:
             return None
 
@@ -379,7 +390,25 @@ Summary:
         import time
         compression_start = time.perf_counter()
 
-        compacted_text, compression_cost = self._apply_history_compaction(old_history_text)
+        # If persistent context has existing summary, do roll-up summarization
+        if persistent_ctx and persistent_ctx.conversation_summary:
+            compacted_text, compression_cost = self._apply_rollup_summarization(
+                existing_summary=persistent_ctx.conversation_summary,
+                new_history=old_history_text,
+            )
+
+            # Update persistent context
+            persistent_ctx.conversation_summary = compacted_text
+            persistent_ctx.record_compaction(transient_ctx.turn_number)
+        else:
+            # First-time compaction: create initial summary
+            compacted_text, compression_cost = self._apply_history_compaction(old_history_text)
+
+            # Update persistent context if provided
+            if persistent_ctx:
+                persistent_ctx.conversation_summary = compacted_text
+                persistent_ctx.record_compaction(transient_ctx.turn_number)
+
         compacted_tokens = self.token_counter.count_text(compacted_text)
 
         compression_time_ms = (time.perf_counter() - compression_start) * 1000
@@ -389,7 +418,11 @@ Summary:
             role="system",
             content=f"[Conversation Summary]: {compacted_text}",
             token_count=compacted_tokens,
-            metadata={"type": "compacted_history"},
+            metadata={
+                "type": "compacted_history",
+                "generation": persistent_ctx.summary_generations if persistent_ctx else 1,
+                "original_message_count": len(old_messages),
+            },
         )
 
         transient_ctx.conversation_history = [summary_message] + recent_messages
@@ -405,12 +438,84 @@ Summary:
             net_savings=original_tokens - compacted_tokens - compression_cost,
         )
 
+        # Update persistent context compression metrics
+        if persistent_ctx:
+            persistent_ctx.update_compression_metrics(compression_result.net_savings)
+
         self.logger.info(
             "history_compacted",
             original_messages=len(old_messages),
             original_tokens=original_tokens,
             compacted_tokens=compacted_tokens,
             net_savings=compression_result.net_savings,
+            generation=persistent_ctx.summary_generations if persistent_ctx else 1,
         )
 
         return compression_result
+
+    def _apply_rollup_summarization(
+        self,
+        existing_summary: str,
+        new_history: str,
+    ) -> tuple[str, int]:
+        """
+        Apply roll-up summarization to combine existing summary with new history.
+
+        This creates a progressive summarization where each iteration
+        compresses the combined context more efficiently.
+
+        Args:
+            existing_summary: Previous conversation summary
+            new_history: New conversation history to integrate
+
+        Returns:
+            Tuple of (updated_summary, compression_cost)
+        """
+        try:
+            prompt = f"""You are creating an incremental summary of a long conversation.
+
+You have an EXISTING SUMMARY from earlier parts of the conversation:
+{existing_summary}
+
+And NEW CONVERSATION HISTORY that occurred after the summary:
+{new_history}
+
+Create a UNIFIED SUMMARY that:
+1. Preserves key context and decisions from the existing summary
+2. Integrates important information from the new history
+3. Maintains conversation continuity and state
+4. Removes redundancy between old and new content
+5. Stays under 500 tokens
+
+Focus on:
+- User goals and preferences
+- Important decisions made
+- Current state and context
+- Action items and next steps
+
+Unified Summary:
+"""
+
+            response = self.student_model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    max_output_tokens=500,
+                    temperature=0.3,
+                ),
+            )
+
+            summary = response.text
+            compression_cost = (
+                self.token_counter.count_text(prompt) +
+                self.token_counter.count_text(summary)
+            )
+
+            return summary, compression_cost
+
+        except (ValueError, TypeError, AttributeError) as e:
+            # Catch errors from genai library (API failures, validation errors, etc.)
+            self.logger.error("rollup_summarization_failed", error=str(e))
+            # Fallback: concatenate summaries with truncation
+            combined = f"{existing_summary}\n\n[Recent Activity]\n{new_history}"
+            max_chars = 2000  # ~500 tokens
+            return combined[:max_chars], 0
