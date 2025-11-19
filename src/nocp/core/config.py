@@ -124,8 +124,8 @@ class ProxyConfig(BaseSettings):
 
     # Log Rotation Configuration
     log_file: Optional[Path] = Field(
-        default=Path("./logs/nocp.log"),
-        description="Path to main application log file"
+        default=None,
+        description="Path to main application log file (set to None to disable file logging)"
     )
     log_max_bytes: int = Field(
         default=10 * 1024 * 1024,  # 10MB
@@ -272,21 +272,9 @@ class ProxyConfig(BaseSettings):
 
     def ensure_log_directory(self) -> None:
         """Ensure the log directories exist."""
-        # Ensure metrics log directory exists
-        if (
-            self.metrics_log_file is not None
-            and isinstance(self.metrics_log_file, Path)
-            and self.metrics_log_file.parent is not None
-        ):
-            self.metrics_log_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Ensure main log directory exists
-        if (
-            self.log_file is not None
-            and isinstance(self.log_file, Path)
-            and self.log_file.parent is not None
-        ):
-            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        for log_path in [self.metrics_log_file, self.log_file]:
+            if log_path and log_path.parent:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 # Global configuration instance

@@ -33,10 +33,10 @@ def setup_file_logging(
 
     Returns:
         Configured RotatingFileHandler instance
-    """
-    # Ensure log directory exists
-    log_file.parent.mkdir(parents=True, exist_ok=True)
 
+    Note:
+        Directory creation is handled by get_config().ensure_log_directory()
+    """
     # Create rotating file handler
     file_handler = RotatingFileHandler(
         log_file,
@@ -64,6 +64,15 @@ def setup_logging() -> None:
     """
     config = get_config()
 
+    # Shared processors for pre-rendering
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+    ]
+
     # Configure standard library logging for file output
     if config.log_file is not None:
         # Set up rotating file handler
@@ -73,33 +82,49 @@ def setup_logging() -> None:
             backup_count=config.log_backup_count
         )
 
+        # Override file handler formatter to use structlog's JSONRenderer
+        file_handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                processors=[
+                    structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                    structlog.processors.JSONRenderer(),
+                ],
+            )
+        )
+
+        # Configure console handler with ConsoleRenderer
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                processors=[
+                    structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                    structlog.dev.ConsoleRenderer(),
+                ],
+            )
+        )
+
         # Configure root logger
         root_logger = logging.getLogger()
         root_logger.addHandler(file_handler)
-        root_logger.setLevel(getattr(logging, config.log_level.upper(), logging.INFO))
-
-        # Add console handler for console output
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(message)s'))
         root_logger.addHandler(console_handler)
+        root_logger.setLevel(getattr(logging, config.log_level.value, logging.INFO))
 
-        # Use stdlib logger factory for file support
+        # Use stdlib logger factory and no final renderer (handlers do the rendering)
         logger_factory = structlog.stdlib.LoggerFactory()
+        processors = shared_processors + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ]
     else:
-        # Use print logger factory for console-only mode
+        # Use print logger factory for console-only mode with final renderer
         logger_factory = structlog.PrintLoggerFactory()
+        processors = shared_processors + [
+            structlog.processors.JSONRenderer() if config.log_level == LogLevel.DEBUG
+            else structlog.dev.ConsoleRenderer(),
+        ]
 
     # Configure structlog with appropriate processors
     structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.StackInfoRenderer(),
-            structlog.dev.set_exc_info,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer() if config.log_level == LogLevel.DEBUG
-            else structlog.dev.ConsoleRenderer(),
-        ],
+        processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(
             getattr(structlog.stdlib, config.log_level.value, structlog.INFO)
         ),
@@ -142,20 +167,22 @@ class MetricsLogger:
         self.enabled = config.enable_metrics_logging
         self.logger = get_logger("metrics")
 
-        # Ensure log directory exists and set up rotating file handler
+        # Set up rotating file handler for metrics using shared setup function
         if self.enabled:
-            self.log_file.parent.mkdir(parents=True, exist_ok=True)
-
-            # Set up rotating file handler for metrics
-            self.file_handler = RotatingFileHandler(
-                self.log_file,
-                maxBytes=config.log_max_bytes,
-                backupCount=config.log_backup_count,
-                encoding='utf-8'
+            # Create file handler using shared setup function
+            self.file_handler = setup_file_logging(
+                log_file=self.log_file,
+                max_bytes=config.log_max_bytes,
+                backup_count=config.log_backup_count
             )
-            # Set a simple formatter that only outputs the message
-            # This preserves JSONL format
+            # Override formatter to preserve JSONL format (output only the message)
             self.file_handler.setFormatter(logging.Formatter('%(message)s'))
+
+            # Create dedicated logger for writing to metrics file
+            self.file_logger = logging.getLogger("metrics.file")
+            self.file_logger.setLevel(logging.INFO)
+            self.file_logger.addHandler(self.file_handler)
+            self.file_logger.propagate = False  # Prevent logs from going to parent loggers
 
     def log_transaction(self, metrics: ContextMetrics) -> None:
         """
@@ -179,19 +206,9 @@ class MetricsLogger:
             comp.net_savings > 0 for comp in metrics.compression_operations
         )
 
-        # Write to JSONL file using rotating file handler
-        # Create a log record with just the JSON line
+        # Write to JSONL file using dedicated logger
         log_line = json.dumps(metrics_dict)
-        record = logging.LogRecord(
-            name="metrics",
-            level=logging.INFO,
-            pathname=str(self.log_file),
-            lineno=0,
-            msg=log_line,
-            args=(),
-            exc_info=None
-        )
-        self.file_handler.emit(record)
+        self.file_logger.info(log_line)
 
         # Log summary to console
         self.logger.info(
