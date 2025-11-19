@@ -18,6 +18,7 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from nocp.core.act import ToolExecutor
 from nocp.exceptions import ToolExecutionError
@@ -39,9 +40,9 @@ class TestToolExecutor:
     def test_executor_initialization(self):
         """Test that executor initializes with empty registries."""
         executor = ToolExecutor()
+        # Test through public API only
         assert executor.list_tools() == []
-        assert executor._registry == {}
-        assert executor._async_registry == {}
+        assert not executor.validate_tool("nonexistent_tool")
 
     def test_register_tool_decorator(self):
         """Test tool registration using decorator."""
@@ -622,6 +623,13 @@ class TestToolExecutorEdgeCases:
         with pytest.raises(ValidationError):
             RetryConfig(max_attempts=6)  # Above maximum
 
+        # Test other parameter bounds
+        with pytest.raises(ValidationError):
+            RetryConfig(backoff_multiplier=0.5)  # Below minimum (must be >= 1.0)
+
+        with pytest.raises(ValidationError):
+            RetryConfig(initial_delay_ms=5)  # Below minimum (must be >= 10)
+
     def test_tool_type_enum(self):
         """Test ToolType enum values."""
         assert ToolType.PYTHON_FUNCTION == "python_function"
@@ -630,29 +638,27 @@ class TestToolExecutorEdgeCases:
         assert ToolType.RAG_RETRIEVAL == "rag_retrieval"
         assert ToolType.FILE_OPERATION == "file_operation"
 
-    def test_concurrent_tool_registration(self):
-        """Test that tools can be registered and executed concurrently."""
-        results = []
-
-        @self.executor.register_tool("concurrent1")
-        def concurrent1() -> int:
+    def test_multiple_tools_execution(self):
+        """Test that multiple tools can be registered and executed."""
+        @self.executor.register_tool("tool1")
+        def tool1() -> int:
             return 1
 
-        @self.executor.register_tool("concurrent2")
-        def concurrent2() -> int:
+        @self.executor.register_tool("tool2")
+        def tool2() -> int:
             return 2
 
         request1 = ToolRequest(
-            tool_id="concurrent1",
+            tool_id="tool1",
             tool_type=ToolType.PYTHON_FUNCTION,
-            function_name="concurrent1",
+            function_name="tool1",
             parameters={}
         )
 
         request2 = ToolRequest(
-            tool_id="concurrent2",
+            tool_id="tool2",
             tool_type=ToolType.PYTHON_FUNCTION,
-            function_name="concurrent2",
+            function_name="tool2",
             parameters={}
         )
 
@@ -692,10 +698,8 @@ class TestToolExecutorEdgeCases:
         # Check backoff delays (with some tolerance)
         # First retry: ~100ms delay
         # Second retry: ~200ms delay
-        if len(attempt_times) >= 2:
-            delay1 = (attempt_times[1] - attempt_times[0]) * 1000
-            assert 80 <= delay1 <= 150  # Allow some tolerance
+        delay1 = (attempt_times[1] - attempt_times[0]) * 1000
+        assert 80 <= delay1 <= 150  # Allow some tolerance
 
-        if len(attempt_times) >= 3:
-            delay2 = (attempt_times[2] - attempt_times[1]) * 1000
-            assert 180 <= delay2 <= 250  # ~200ms with tolerance
+        delay2 = (attempt_times[2] - attempt_times[1]) * 1000
+        assert 180 <= delay2 <= 250  # ~200ms with tolerance
