@@ -342,6 +342,7 @@ Pre-commit hooks run automatically:
 
 - [Architecture Overview](docs/01-ARCHITECTURE.md)
 - [API Contracts](docs/02-API-CONTRACTS.md)
+  <!-- Note: There is no docs/03-*.md document; this is intentional. -->
 - [Development Roadmap](docs/03-DEVELOPMENT-ROADMAP.md)
 - [Component Specs](docs/04-COMPONENT-SPECS.md)
 - [Testing Strategy](docs/05-TESTING-STRATEGY.md)
