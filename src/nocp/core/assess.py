@@ -6,6 +6,7 @@ Implements semantic pruning, knowledge distillation, and history compaction.
 """
 
 import json
+import logging
 import time
 from typing import List, Optional
 
@@ -17,6 +18,8 @@ from ..models.contracts import (
     ToolResult,
     ChatMessage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ContextManager:
@@ -67,7 +70,7 @@ class ContextManager:
                 import litellm
                 self.litellm = litellm
             except ImportError:
-                print("Warning: litellm not available. Compression features limited.")
+                logger.warning("litellm not available. Compression features limited.")
 
     def optimize(self, context: ContextData) -> OptimizedContext:
         """
@@ -125,7 +128,7 @@ class ContextManager:
                 compressed_text = raw_text
         except Exception as e:
             # Fallback to raw on compression failure
-            print(f"Warning: Compression failed ({e}), using raw context")
+            logger.warning(f"Compression failed ({e}), using raw context")
             compressed_text = raw_text
             strategy = CompressionMethod.NONE
 
@@ -169,7 +172,7 @@ class ContextManager:
                 return tokens
             except Exception as e:
                 # Log the error but fall back gracefully
-                print(f"Warning: LiteLLM token counting failed for {target_model}: {e}")
+                logger.warning(f"LiteLLM token counting failed for {target_model}: {e}")
 
         # Fallback: rough estimate (1 token ≈ 4 chars)
         # This should be within ±20% accuracy for most text
@@ -237,14 +240,25 @@ class ContextManager:
         )
 
         current_tokens = 0
-        total_original_items = 0
-        total_kept_items = 0
 
         for result in context.tool_results:
             if isinstance(result.data, list):
                 # Apply top-k selection for lists
                 items = result.data
-                total_original_items += len(items)
+
+                # Skip empty lists
+                if len(items) == 0:
+                    pruned_results.append({
+                        "tool_id": result.tool_id,
+                        "data": [],
+                        "metadata": {
+                            "pruned": False,
+                            "kept": 0,
+                            "total": 0,
+                            "reduction_pct": 0.0
+                        }
+                    })
+                    continue
 
                 # Calculate how many items to keep based on target ratio
                 # Aim for 30-40% retention (60-70% reduction)
@@ -257,8 +271,6 @@ class ContextManager:
                         break
                     items_to_keep.append(item)
                     current_tokens += item_tokens
-
-                total_kept_items += len(items_to_keep)
 
                 pruned_results.append({
                     "tool_id": result.tool_id,
@@ -276,13 +288,26 @@ class ContextManager:
                 # Simple heuristic: take first and last paragraphs + middle section
                 paragraphs = text.split('\n\n')
                 if len(paragraphs) > 5:
-                    # Keep first 2, last 2, and sample from middle
+                    # Calculate total paragraphs to keep based on target ratio
                     keep_count = max(3, int(len(paragraphs) * self.target_compression_ratio))
-                    kept_paragraphs = (
-                        paragraphs[:2] +
-                        paragraphs[len(paragraphs)//2:len(paragraphs)//2 + keep_count - 4] +
-                        paragraphs[-2:]
-                    )
+
+                    # Ensure keep_count doesn't exceed available paragraphs
+                    keep_count = min(keep_count, len(paragraphs))
+
+                    # Strategy: keep first 2, last 2, and fill middle from center
+                    if keep_count <= 4:
+                        # If keep_count is small, just take first and last
+                        kept_paragraphs = paragraphs[:keep_count//2] + paragraphs[-(keep_count - keep_count//2):]
+                    else:
+                        # Keep first 2, last 2, and sample from middle
+                        middle_count = keep_count - 4
+                        middle_start = len(paragraphs) // 2 - middle_count // 2
+                        middle_end = middle_start + middle_count
+                        kept_paragraphs = (
+                            paragraphs[:2] +
+                            paragraphs[middle_start:middle_end] +
+                            paragraphs[-2:]
+                        )
                     pruned_text = '\n\n'.join(kept_paragraphs)
                 else:
                     pruned_text = text
@@ -345,24 +370,30 @@ class ContextManager:
         # Target compressed size (40% of original = 60% reduction)
         expected_compressed_tokens = int(raw_tokens * self.target_compression_ratio)
 
-        # Estimate compression cost (prompt engineering + response)
-        # Student model needs to read the full context
+        # Estimate compression cost (overhead only)
+        # The cost is: prompt_template tokens + output tokens
+        # We don't count raw_tokens here because we have to send those to the main model anyway
+        # The compression cost is the ADDITIONAL cost of using the student model
         prompt_template = "Summarize the following text concisely while preserving all key information."
-        estimated_prompt_tokens = self.estimate_tokens(prompt_template) + raw_tokens
+        prompt_overhead_tokens = self.estimate_tokens(prompt_template)
         estimated_response_tokens = expected_compressed_tokens
 
-        # Total cost of compression (input + output tokens for student model)
-        compression_cost_tokens = estimated_prompt_tokens + estimated_response_tokens
+        # Total overhead cost of compression (not counting the input we'd send anyway)
+        compression_overhead = prompt_overhead_tokens + estimated_response_tokens
 
         # Calculate potential savings
-        # Savings = (raw_tokens - compressed_tokens) - compression_cost
-        potential_savings = raw_tokens - expected_compressed_tokens - compression_cost_tokens
+        # Savings = (tokens saved from compression) - (overhead of compression)
+        # Tokens saved = raw_tokens - expected_compressed_tokens
+        # Overhead = prompt template + compressed output
+        potential_savings = (raw_tokens - expected_compressed_tokens) - compression_overhead
 
         # Only proceed if savings are positive (compression is beneficial)
         if potential_savings <= 0:
-            print(f"Warning: Compression not cost-effective. "
-                  f"Raw: {raw_tokens}, Compressed: {expected_compressed_tokens}, "
-                  f"Cost: {compression_cost_tokens}, Savings: {potential_savings}")
+            logger.warning(
+                f"Compression not cost-effective. "
+                f"Raw: {raw_tokens}, Compressed: {expected_compressed_tokens}, "
+                f"Overhead: {compression_overhead}, Savings: {potential_savings}"
+            )
             return raw_text
 
         # Call student model for summarization
@@ -388,14 +419,16 @@ class ContextManager:
             actual_compression_ratio = summary_tokens / raw_tokens if raw_tokens > 0 else 1.0
 
             # Log compression metrics
-            print(f"Knowledge Distillation: {raw_tokens} -> {summary_tokens} tokens "
-                  f"({actual_compression_ratio:.1%} ratio)")
+            logger.info(
+                f"Knowledge Distillation: {raw_tokens} -> {summary_tokens} tokens "
+                f"({actual_compression_ratio:.1%} ratio)"
+            )
 
             return summary
 
         except Exception as e:
             # Fallback to raw if summarization fails
-            print(f"Warning: Summarization failed ({e}), using raw text")
+            logger.warning(f"Summarization failed ({e}), using raw text")
             return raw_text
 
     def _history_compaction(self, context: ContextData) -> str:
