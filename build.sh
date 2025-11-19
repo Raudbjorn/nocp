@@ -615,7 +615,7 @@ clean_cache() {
 
     print_info "Cleaning Python caches..."
     rm -rf .pytest_cache .mypy_cache .ruff_cache
-    find . -type d -name "__pycache__" -delete 2>/dev/null || true
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete 2>/dev/null || true
     print_success "Caches cleaned"
 }
