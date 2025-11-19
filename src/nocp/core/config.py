@@ -17,7 +17,7 @@ import sys
 from typing import Optional, Dict, Any
 from pathlib import Path
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
 
 # Import tomllib for Python 3.11+, tomli for Python 3.10
 if sys.version_info >= (3, 11):
@@ -70,11 +70,38 @@ def load_pyproject_defaults() -> Dict[str, Any]:
 
         return tool_config
 
-    except Exception as e:
+    except (OSError, AttributeError) as e:
+        # OSError: file I/O errors
+        # AttributeError: tomllib.TOMLDecodeError doesn't exist if tomllib is None
         import logging
         logger = logging.getLogger(__name__)
         logger.warning(f"Could not load pyproject.toml: {e}")
         return {}
+    except Exception as e:
+        # Catch tomllib.TOMLDecodeError and any other parsing errors
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not parse pyproject.toml: {e}")
+        return {}
+
+
+class PyProjectTomlSettingsSource(PydanticBaseSettingsSource):
+    """
+    A pydantic-settings source that loads configuration from pyproject.toml.
+
+    This custom settings source enables loading configuration from the [tool.nocp]
+    section in pyproject.toml, following Python packaging standards.
+    """
+
+    def get_field_value(
+        self, field_name: str, field_info: Any
+    ) -> tuple[Any, str, bool]:
+        """Not used in this implementation."""
+        return None, "", False
+
+    def __call__(self) -> Dict[str, Any]:
+        """Load and return configuration from pyproject.toml."""
+        return load_pyproject_defaults()
 
 
 class ProxyConfig(BaseSettings):
@@ -209,29 +236,36 @@ class ProxyConfig(BaseSettings):
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
 
-    def __init__(self, **kwargs: Any) -> None:
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
         """
-        Initialize ProxyConfig with support for pyproject.toml defaults.
+        Customize the sources and their priority for loading configuration.
 
         Configuration precedence (highest to lowest):
-        1. Explicit kwargs (e.g., from CLI arguments)
-        2. Environment variables (NOCP_* prefix)
-        3. .env file
-        4. pyproject.toml [tool.nocp] section
-        5. Hardcoded field defaults
+        1. init_settings - Explicit kwargs passed to ProxyConfig()
+        2. env_settings - Environment variables (NOCP_* prefix)
+        3. dotenv_settings - .env file
+        4. PyProjectTomlSettingsSource - pyproject.toml [tool.nocp] section
+        5. file_secret_settings - Secret files (if any)
+        6. Default field values
 
-        Args:
-            **kwargs: Explicit configuration values (highest precedence)
+        Returns:
+            Tuple of settings sources in priority order
         """
-        # Load pyproject.toml defaults first (lowest precedence)
-        pyproject_defaults = load_pyproject_defaults()
-
-        # Merge with explicit kwargs (kwargs take precedence)
-        # Only include pyproject values that aren't explicitly provided via kwargs
-        merged = {**pyproject_defaults, **kwargs}
-
-        # Call parent __init__ with merged configuration
-        super().__init__(**merged)
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            PyProjectTomlSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
     def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
         """

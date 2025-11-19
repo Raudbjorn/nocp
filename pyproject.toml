@@ -63,7 +63,7 @@ disallow_untyped_defs = true
 # Uncomment and customize the settings below to configure project-specific defaults
 # [tool.nocp]
 # # Project-specific NOCP defaults
-# compression_threshold = 5000
+# default_compression_threshold = 5000
 # enable_semantic_pruning = true
 # enable_knowledge_distillation = false
 # default_output_format = "toon"

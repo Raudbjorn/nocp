@@ -2,7 +2,7 @@
 Unit tests for Configuration Module.
 
 Tests cover:
-- PyProject.toml configuration loading
+- pyproject.toml configuration loading
 - Configuration precedence (CLI > env > .env > pyproject.toml > defaults)
 - Error handling for missing/invalid pyproject.toml
 - Backward compatibility
