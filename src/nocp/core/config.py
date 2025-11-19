@@ -92,7 +92,7 @@ class PyProjectTomlSettingsSource(PydanticBaseSettingsSource):
     section in pyproject.toml, following Python packaging standards.
     """
 
-    def get_field_value(self, field_name: str, field_info: Any) -> tuple[Any, str, bool]:
+    def get_field_value(self, field_name: str, field_info: Any) -> tuple[Any, str, bool]:  # type: ignore[override]
         """Not used in this implementation."""
         return None, "", False
 
@@ -490,7 +490,7 @@ def get_config() -> ProxyConfig:
     """
     global _config
     if _config is None:
-        _config = ProxyConfig()
+        _config = ProxyConfig()  # type: ignore[call-arg]
         _config.ensure_log_directory()
     return _config
 

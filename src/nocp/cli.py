@@ -7,7 +7,6 @@ Provides commands for setup, running scripts, testing, and benchmarking.
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -93,7 +92,7 @@ def run(
         # Run script via uv
         result = subprocess.run(
             [*uv_cmd, "run", "python", str(script)],
-            env={**subprocess.os.environ, **env},
+            env={**subprocess.os.environ, **env},  # type: ignore[attr-defined]
             check=True,
         )
         sys.exit(result.returncode)
@@ -209,10 +208,10 @@ def health():
 
     # Check dependencies
     try:
-        import litellm
-        import pydantic
-        import rich
-        import typer
+        import litellm  # noqa: F401
+        import pydantic  # noqa: F401
+        import rich  # noqa: F401
+        import typer  # noqa: F401
 
         console.print("[green]✓[/green] Dependencies: OK")
     except ImportError as e:
@@ -267,7 +266,7 @@ app.add_typer(config_app, name="config")
 
 @config_app.command("export")
 def config_export(
-    output: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(
         None, "--output", "-o", help="Output file path (default: .nocp/config.yaml)"
     ),
     include_secrets: bool = typer.Option(
@@ -304,12 +303,12 @@ def config_load(
     config_file: Path = typer.Argument(..., help="Path to configuration YAML file"),
 ):
     """
-    Load and validate configuration from YAML file.
-
-    This loads the configuration and displays it for verification.
-    To actually use this config, set it as your environment or .env file.
+      Load and validate configuration from YAML file.
+    # type: ignore[import-untyped]
+      This loads the configuration and displays it for verification.
+      To actually use this config, set it as your environment or .env file.
     """
-    import yaml
+    import yaml  # type: ignore[import-untyped]
     from pydantic import ValidationError
 
     from .utils.config_export import import_config

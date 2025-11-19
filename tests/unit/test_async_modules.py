@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 
 import pytest
+from pydantic import BaseModel
+
 from nocp.core.act import ToolExecutor
 from nocp.core.async_modules import (
     AsyncContextManager,
@@ -22,7 +24,6 @@ from nocp.models.contracts import (
     ToolResult,
     ToolType,
 )
-from pydantic import BaseModel
 
 
 class User(BaseModel):

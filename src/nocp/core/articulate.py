@@ -65,13 +65,13 @@ class OutputSerializer:
                     request.data, length_marker="#" if request.include_length_markers else ""
                 )
             else:  # COMPACT_JSON
-                serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))
+                serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))  # type: ignore[call-arg]
         except Exception as e:
             # Fallback to compact JSON on error
             articulate_logger.logger.warning(
                 f"Serialization failed ({e}), falling back to compact JSON"
             )
-            serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))
+            serialized = request.data.model_dump_json(indent=None, separators=(",", ":"))  # type: ignore[call-arg]
             format_used = OutputFormat.COMPACT_JSON
 
         serialization_time = (time.perf_counter() - start_time) * 1000

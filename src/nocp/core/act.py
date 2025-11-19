@@ -112,7 +112,7 @@ class ToolExecutor:
 
         # Check cache first
         if use_cache and self._cache is not None:
-            cached_result = self._cache.get_by_request(request)
+            cached_result = self._cache.get_by_request(request)  # type: ignore[attr-defined]
             if cached_result is not None:
                 act_logger.log_operation_complete(
                     "tool_execution", details={"tool_id": request.tool_id, "cache_hit": True}
@@ -171,7 +171,7 @@ class ToolExecutor:
 
                 # Cache successful result
                 if use_cache and self._cache is not None:
-                    self._cache.set_by_request(request, tool_result)
+                    self._cache.set_by_request(request, tool_result)  # type: ignore[attr-defined]
 
                 return tool_result
 
@@ -201,7 +201,7 @@ class ToolExecutor:
 
         # All retries failed - raise appropriate exception
         if is_timeout:
-            error = TimeoutError(last_error)
+            error = TimeoutError(last_error)  # type: ignore[assignment]
         else:
             error = ToolExecutionError(
                 f"Tool execution failed after {max_attempts} attempts",
@@ -242,7 +242,7 @@ class ToolExecutor:
                 cached_result = await self._cache.get_by_request_async(request)
             else:
                 # Fallback to sync method if async version is not available
-                cached_result = await asyncio.to_thread(self._cache.get_by_request, request)
+                cached_result = await asyncio.to_thread(self._cache.get_by_request, request)  # type: ignore[attr-defined]
 
             if cached_result is not None:
                 act_logger.log_operation_complete(
@@ -306,7 +306,7 @@ class ToolExecutor:
                         await self._cache.set_by_request_async(request, tool_result)
                     else:
                         # Fallback to sync method if async version is not available
-                        await asyncio.to_thread(self._cache.set_by_request, request, tool_result)
+                        await asyncio.to_thread(self._cache.set_by_request, request, tool_result)  # type: ignore[attr-defined]
 
                 return tool_result
 
@@ -332,7 +332,7 @@ class ToolExecutor:
 
         # All retries failed - raise appropriate exception
         if is_timeout:
-            error = TimeoutError(last_error)
+            error = TimeoutError(last_error)  # type: ignore[assignment]
         else:
             error = ToolExecutionError(
                 f"Tool execution failed after {max_attempts} attempts",

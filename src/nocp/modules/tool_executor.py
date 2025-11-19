@@ -244,7 +244,7 @@ class ToolExecutor:
 
                 if expected_type in type_map:
                     expected_python_type = type_map[expected_type]
-                    if not isinstance(value, expected_python_type):
+                    if not isinstance(value, expected_python_type):  # type: ignore[arg-type]
                         return False, f"Parameter '{param.name}' has wrong type"
 
         return True, None
@@ -273,12 +273,12 @@ class ToolExecutor:
                 }
 
                 if param.enum:
-                    param_schema["enum"] = param.enum
+                    param_schema["enum"] = param.enum  # type: ignore[assignment]
 
-                parameters_schema["properties"][param.name] = param_schema
+                parameters_schema["properties"][param.name] = param_schema  # type: ignore[index]
 
                 if param.required:
-                    parameters_schema["required"].append(param.name)
+                    parameters_schema["required"].append(param.name)  # type: ignore[attr-defined]
 
             # Build function schema
             function_schema = {

@@ -8,6 +8,8 @@ to ensure configuration errors are caught at startup, and tests enum integration
 import logging
 
 import pytest
+from pydantic import ValidationError
+
 from nocp.core.config import ProxyConfig
 from nocp.models.enums import (
     CompressionStrategy,
@@ -15,7 +17,6 @@ from nocp.models.enums import (
     LogLevel,
     OutputFormat,
 )
-from pydantic import ValidationError
 
 
 @pytest.fixture

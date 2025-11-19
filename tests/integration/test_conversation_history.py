@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+
 from nocp.core.persistence import PersistenceManager
 from nocp.models.context import (
     ContextSnapshot,
