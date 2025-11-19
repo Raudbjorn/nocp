@@ -1514,6 +1514,7 @@ dependencies = [
     { name = "structlog" },
     { name = "tenacity" },
     { name = "tiktoken" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
 ]
 
@@ -1549,6 +1550,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=23.1.0" },
     { name = "tenacity", specifier = ">=8.2.0" },
     { name = "tiktoken", specifier = ">=0.5.0" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
     { name = "typer", specifier = ">=0.9.0" },
 ]
 provides-extras = ["dev", "litellm"]
