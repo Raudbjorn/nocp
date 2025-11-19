@@ -191,7 +191,7 @@ class NOCPTestRunner:
         print(f"   Tests: {result.test_count}")
         print(f"   Duration: {result.duration_s:.2f}s")
 
-        if not result.passed and not self.verbose:
+        if not result.passed:
             print(f"\n{result.output}")
 
     def run_all_tests(
