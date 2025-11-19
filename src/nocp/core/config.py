@@ -6,10 +6,12 @@ configuration object for all components.
 """
 
 import os
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from ..models.enums import OutputFormat, LogLevel, CompressionStrategy, LLMProvider
 
 
 class ProxyConfig(BaseSettings):
@@ -64,23 +66,33 @@ class ProxyConfig(BaseSettings):
         description="Maximum output tokens for student summarizer"
     )
 
-    # Compression Strategy Toggles
+    # Compression Strategy Configuration
+    compression_strategies: List[CompressionStrategy] = Field(
+        default=[
+            CompressionStrategy.SEMANTIC_PRUNING,
+            CompressionStrategy.KNOWLEDGE_DISTILLATION,
+            CompressionStrategy.HISTORY_COMPACTION,
+        ],
+        description="List of enabled compression strategies"
+    )
+
+    # Legacy boolean flags (deprecated, but kept for backward compatibility)
     enable_semantic_pruning: bool = Field(
         default=True,
-        description="Enable semantic pruning for RAG/document outputs"
+        description="[DEPRECATED] Use compression_strategies instead. Enable semantic pruning for RAG/document outputs"
     )
     enable_knowledge_distillation: bool = Field(
         default=True,
-        description="Enable knowledge distillation via student summarizer"
+        description="[DEPRECATED] Use compression_strategies instead. Enable knowledge distillation via student summarizer"
     )
     enable_history_compaction: bool = Field(
         default=True,
-        description="Enable conversation history compaction"
+        description="[DEPRECATED] Use compression_strategies instead. Enable conversation history compaction"
     )
 
     # Output Serialization Configuration
-    default_output_format: str = Field(
-        default="toon",
+    default_output_format: OutputFormat = Field(
+        default=OutputFormat.TOON,
         description="Default output format: toon, compact_json, or json"
     )
     toon_fallback_threshold: float = Field(
@@ -93,7 +105,10 @@ class ProxyConfig(BaseSettings):
     )
 
     # Monitoring and Logging
-    log_level: str = Field(default="INFO", description="Logging level")
+    log_level: LogLevel = Field(
+        default=LogLevel.INFO,
+        description="Logging level"
+    )
     enable_metrics_logging: bool = Field(
         default=True,
         description="Enable detailed metrics logging"
@@ -143,6 +158,18 @@ class ProxyConfig(BaseSettings):
 
     # Tool-specific compression thresholds (runtime registry)
     _compression_thresholds: Dict[str, int] = {}
+
+    def is_strategy_enabled(self, strategy: CompressionStrategy) -> bool:
+        """
+        Check if a specific compression strategy is enabled.
+
+        Args:
+            strategy: The compression strategy to check
+
+        Returns:
+            True if the strategy is in the enabled list
+        """
+        return strategy in self.compression_strategies
 
     def register_tool_threshold(self, tool_name: str, threshold: int) -> None:
         """

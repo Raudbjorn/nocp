@@ -15,6 +15,12 @@ from .context import (
     PersistentContext,
     ConversationMessage,
 )
+from .enums import (
+    OutputFormat,
+    LogLevel,
+    CompressionStrategy,
+    LLMProvider,
+)
 
 __all__ = [
     "AgentRequest",
@@ -26,4 +32,8 @@ __all__ = [
     "TransientContext",
     "PersistentContext",
     "ConversationMessage",
+    "OutputFormat",
+    "LogLevel",
+    "CompressionStrategy",
+    "LLMProvider",
 ]
