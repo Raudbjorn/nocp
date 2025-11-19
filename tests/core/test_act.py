@@ -616,10 +616,10 @@ class TestToolExecutorEdgeCases:
         assert config.max_attempts == 3
 
         # Test max_attempts bounds
-        with pytest.raises(Exception):  # Pydantic validation error
+        with pytest.raises(ValidationError):
             RetryConfig(max_attempts=0)  # Below minimum
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RetryConfig(max_attempts=6)  # Above maximum
 
     def test_tool_type_enum(self):
