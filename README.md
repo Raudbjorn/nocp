@@ -330,6 +330,55 @@ ruff check src/nocp
 mypy src/nocp
 ```
 
+### Pre-commit Hooks (Recommended)
+
+NOCP uses pre-commit hooks to automatically enforce code quality standards before each commit. This ensures consistent formatting, catches common issues early, and reduces CI failures.
+
+#### Setup
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install git hooks
+pre-commit install
+```
+
+#### What the hooks do
+
+The pre-commit configuration automatically runs the following checks before each commit:
+
+- **Code Formatting**: Black automatically formats Python code to ensure consistency
+- **Linting**: Ruff checks for code quality issues and auto-fixes where possible
+- **Type Checking**: MyPy validates type annotations
+- **General Checks**:
+  - Remove trailing whitespace
+  - Ensure files end with a newline
+  - Validate YAML, JSON, and TOML syntax
+  - Check for large files (>1MB)
+  - Detect debug statements
+  - Verify docstrings come first
+
+#### Manual execution
+
+```bash
+# Run hooks on all files
+pre-commit run --all-files
+
+# Run hooks on staged files only
+pre-commit run
+
+# Update hook versions
+pre-commit autoupdate
+```
+
+#### Benefits
+
+- Automatic code formatting before commit
+- Catch issues early (before CI)
+- Consistent code style across contributors
+- Reduced CI failures and faster reviews
+
 ## Performance Targets
 
 | Metric | Target | Status |
