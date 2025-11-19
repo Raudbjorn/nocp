@@ -23,6 +23,7 @@ from ..modules.context_manager import ContextManager
 from ..modules.output_serializer import OutputSerializer
 from ..core.config import get_config
 from ..utils.logging import get_logger, log_metrics, get_metrics_logger, agent_logger
+from ..utils.rich_logging import console
 from ..utils.token_counter import TokenCounter
 from ..llm.client import LLMClient
 from ..llm.router import ModelRouter, RequestComplexity
@@ -57,6 +58,11 @@ class HighEfficiencyProxyAgent:
         # Setup logging
         self.logger = get_logger(__name__)
         self.logger.info("initializing_proxy_agent")
+
+        # Print startup banner (if rich console is enabled)
+        if self.config.enable_rich_console:
+            console.print_banner()
+            console.print_config_summary(self.config)
 
         # Initialize token counter
         self.token_counter = TokenCounter(model_name)
@@ -232,6 +238,10 @@ class HighEfficiencyProxyAgent:
             # Log metrics
             log_metrics(metrics)
 
+            # Print beautiful metrics table (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_metrics(metrics)
+
             # Update session
             self.router.finalize_session(
                 persistent_ctx=persistent_ctx,
@@ -248,6 +258,13 @@ class HighEfficiencyProxyAgent:
                 compression_ratio=round(metrics.input_compression_ratio, 3),
             )
 
+            # Print success message (if rich console is enabled)
+            if self.config.enable_rich_console:
+                console.print_success(
+                    f"Request processed successfully - saved {input_token_savings + token_savings:,} tokens"
+                )
+
+            # Log operation completion with component logger
             agent_logger.log_operation_complete(
                 "agent_request",
                 duration_ms=total_latency_ms,
@@ -268,6 +285,10 @@ class HighEfficiencyProxyAgent:
                 transaction_id=transaction_id,
                 error=str(e),
             )
+            if self.config.enable_rich_console:
+                console.print_error(f"Request processing failed: {str(e)}")
+
+            # Log error with component logger
             agent_logger.log_operation_error(
                 "agent_request",
                 e,

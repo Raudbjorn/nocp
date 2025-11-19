@@ -216,6 +216,10 @@ class ProxyConfig(BaseSettings):
         default=-1000.0,
         description="Threshold for drift detection warning (negative delta trend)"
     )
+    enable_rich_console: bool = Field(
+        default=True,
+        description="Enable rich console output (banners, tables, progress bars)"
+    )
 
     # Log Rotation Configuration
     log_file: Optional[Path] = Field(
