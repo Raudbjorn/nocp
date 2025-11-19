@@ -15,7 +15,7 @@ Configuration precedence (highest to lowest):
 import logging
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -116,6 +116,15 @@ class ProxyConfig(BaseSettings):
         extra="ignore",
     )
 
+    # Secret fields that should be excluded from exports by default
+    SECRET_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "gemini_api_key",
+            "openai_api_key",
+            "anthropic_api_key",
+        }
+    )
+
     # Gemini API Configuration
     gemini_api_key: str = Field(..., description="Google Gemini API key")
     gemini_model: str = Field(default="gemini-2.5-flash", description="Primary Gemini model to use")
@@ -189,6 +198,9 @@ class ProxyConfig(BaseSettings):
     )
     drift_detection_threshold: float = Field(
         default=-1000.0, description="Threshold for drift detection warning (negative delta trend)"
+    )
+    enable_rich_console: bool = Field(
+        default=True, description="Enable rich console output (banners, tables, progress bars)"
     )
 
     # Log Rotation Configuration
