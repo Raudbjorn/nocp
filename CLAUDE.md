@@ -7,7 +7,7 @@ This file provides guidance to Claude Code and other AI assistants when working 
 ### Development Setup
 ```bash
 # Clone and enter directory
-git clone <repo> && cd nocp
+git clone https://github.com/your-org/nocp.git && cd nocp
 
 # Install with dev dependencies
 pip install -e ".[dev]"
@@ -44,31 +44,33 @@ pre-commit run --all-files         # Run all hooks
 ```
 nocp/
 ├── src/nocp/
-│   ├── core/              # Core modules (agent, act, assess, articulate)
-│   │   ├── agent.py       # Main orchestrator
-│   │   ├── act.py         # Tool execution
-│   │   ├── assess.py      # Context compression
-│   │   ├── articulate.py  # Output serialization
-│   │   └── config.py      # Configuration
+│   ├── core/              # Core architecture components
+│   │   ├── agent.py       # Main orchestrator (HighEfficiencyProxyAgent)
+│   │   ├── act.py         # Tool execution logic (legacy, use modules/ instead)
+│   │   ├── assess.py      # Context compression logic
+│   │   ├── articulate.py  # Output serialization logic
+│   │   ├── config.py      # Configuration (ProxyConfig)
+│   │   └── persistence.py # State persistence
+│   ├── modules/           # Reusable implementation modules (ACTIVE)
+│   │   ├── context_manager.py  # ContextManager (Assess implementation)
+│   │   ├── output_serializer.py # OutputSerializer (Articulate implementation)
+│   │   ├── tool_executor.py    # ToolExecutor (Act implementation)
+│   │   └── router.py           # RequestRouter
 │   ├── models/            # Pydantic schemas
 │   │   ├── schemas.py     # Request/response models
 │   │   ├── contracts.py   # Tool contracts
 │   │   ├── context.py     # Context models
 │   │   └── enums.py       # Configuration enums
-│   ├── modules/           # Reusable modules
-│   │   ├── context_manager.py
-│   │   ├── output_serializer.py
-│   │   ├── tool_executor.py
-│   │   └── router.py
 │   ├── llm/               # LLM integration
 │   │   ├── client.py      # LiteLLM wrapper
 │   │   └── router.py      # Model routing
+│   ├── serializers/       # Output serialization formats
+│   │   └── toon.py        # TOON format implementation
+│   ├── observability/     # Monitoring and logging
+│   │   └── logging.py     # Enhanced logging utilities
 │   ├── utils/             # Utilities
 │   │   ├── logging.py     # Structured logging
-│   │   ├── rich_logging.py # Rich console output
-│   │   ├── token_counter.py
-│   │   ├── error_handler.py
-│   │   └── dependencies.py
+│   │   └── token_counter.py
 │   └── tools/             # Example tools
 ├── tests/
 │   ├── unit/              # Fast, isolated tests
@@ -80,30 +82,42 @@ nocp/
 └── benchmarks/            # Performance benchmarks
 ```
 
+**Important**: The `core/` directory contains both high-level orchestration (`agent.py`, `config.py`) and some legacy implementations. The `modules/` directory contains the **active implementations** used by the agent. When developing:
+- Use `modules/tool_executor.py` for tool execution (not `core/act.py`)
+- Use `modules/context_manager.py` for context management (implements logic from `core/assess.py`)
+- Use `modules/output_serializer.py` for output formatting (implements logic from `core/articulate.py`)
+
 ## Architecture: Act-Assess-Articulate
 
 NOCP implements a three-phase pipeline for efficient LLM interaction:
 
 ### 1. Act (Tool Execution)
-- **File**: `src/nocp/core/act.py`
+- **Implementation**: `src/nocp/modules/tool_executor.py`
+- **Logic/Design**: `src/nocp/core/act.py` (legacy reference)
 - **Purpose**: Execute tools with retry logic and timeout handling
 - **Key Classes**: `ToolExecutor`, `ToolRequest`, `ToolResult`
+- **Models**: `src/nocp/models/contracts.py`
 
 ### 2. Assess (Context Optimization)
-- **File**: `src/nocp/core/assess.py`
+- **Implementation**: `src/nocp/modules/context_manager.py`
+- **Logic/Design**: `src/nocp/core/assess.py`
 - **Purpose**: Compress context to reduce token usage
 - **Strategies**: Semantic Pruning, Knowledge Distillation, History Compaction
 - **Key Classes**: `ContextManager`, `ContextData`, `OptimizedContext`
+- **Models**: `src/nocp/models/context.py`
 
 ### 3. Articulate (Output Serialization)
-- **File**: `src/nocp/core/articulate.py`
+- **Implementation**: `src/nocp/modules/output_serializer.py`
+- **Logic/Design**: `src/nocp/core/articulate.py`
 - **Purpose**: Serialize output efficiently (TOON or compact JSON)
 - **Key Classes**: `OutputSerializer`, `SerializationRequest`
+- **TOON Format**: `src/nocp/serializers/toon.py`
 
 ### Orchestrator
 - **File**: `src/nocp/core/agent.py`
 - **Purpose**: Coordinate all phases and handle errors
 - **Key Class**: `HighEfficiencyProxyAgent`
+- **Configuration**: `src/nocp/core/config.py` (`ProxyConfig`)
 
 ## Development Guidelines
 
@@ -116,14 +130,28 @@ NOCP implements a three-phase pipeline for efficient LLM interaction:
 
 ```python
 # In your module
-from nocp.core.act import ToolExecutor
+from nocp.modules.tool_executor import ToolExecutor
+from pydantic import BaseModel
 
 executor = ToolExecutor()
+
+# Define tool schema (Pydantic model)
+class MyToolParams(BaseModel):
+    param: str
 
 @executor.register_tool("my_tool")
 def my_tool(param: str) -> dict:
     """Tool description"""
     return {"result": f"Processed {param}"}
+
+# For LiteLLM/Gemini, add to tool definitions list
+from nocp.models.schemas import ToolDefinition
+
+my_tool_def = ToolDefinition(
+    name="my_tool",
+    description="Tool description for LLM",
+    parameters=MyToolParams.model_json_schema()
+)
 
 # Tests in tests/unit/test_my_tool.py
 def test_my_tool():
@@ -139,7 +167,7 @@ def test_my_tool():
 4. Add tests
 
 ```python
-# In src/nocp/core/assess.py
+# In src/nocp/modules/context_manager.py
 def _my_compression(self, context: ContextData) -> str:
     """Custom compression strategy"""
     # Implementation
@@ -190,10 +218,12 @@ logger.log_operation_complete("process_data", duration_ms=123.45)
 
 Configuration precedence (highest to lowest):
 1. CLI arguments
-2. Environment variables (with `NOCP_` prefix)
+2. Environment variables (direct field names, e.g., `GEMINI_API_KEY`, `LOG_LEVEL`)
 3. `.env` file
 4. `[tool.nocp]` in `pyproject.toml`
 5. Hardcoded defaults
+
+**Note**: Environment variables do NOT use a `NOCP_` prefix. They are named directly from the field names in `ProxyConfig` (e.g., `gemini_api_key` -> `GEMINI_API_KEY`).
 
 Example pyproject.toml:
 
@@ -312,5 +342,7 @@ Pre-commit hooks run automatically:
 
 - [Architecture Overview](docs/01-ARCHITECTURE.md)
 - [API Contracts](docs/02-API-CONTRACTS.md)
+- [Development Roadmap](docs/03-DEVELOPMENT-ROADMAP.md)
 - [Component Specs](docs/04-COMPONENT-SPECS.md)
 - [Testing Strategy](docs/05-TESTING-STRATEGY.md)
+- [Deployment Guide](docs/06-DEPLOYMENT.md)
