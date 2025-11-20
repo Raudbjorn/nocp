@@ -4,6 +4,13 @@
 # Unified build system with automatic package manager detection
 # Comprehensive git/GitHub status monitoring and CI/CD integration
 
+# Check bash version (requires bash 4.3+ for namerefs)
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || ([ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]); then
+    echo "Error: This script requires bash 4.3 or later (found ${BASH_VERSION})" >&2
+    echo "On macOS, install with: brew install bash" >&2
+    exit 1
+fi
+
 set -e  # Exit on error
 
 # Color codes for output
@@ -139,7 +146,9 @@ check_merge_status() {
     if [ -n "$merge_base" ]; then
         # Check if there are conflicting files (this is the expensive part, so we limit it)
         local conflicts=$(git merge-tree "$merge_base" "$current_branch" "$default_branch" 2>/dev/null | grep -c "<<<<<<< " 2>/dev/null || echo "0")
-        if [ -n "$conflicts" ] && [ "$conflicts" -gt 0 ] 2>/dev/null; then
+        # Remove any whitespace/newlines from conflicts count
+        conflicts=$(echo "$conflicts" | tr -d '\n\r\t ')
+        if [[ "$conflicts" =~ ^[0-9]+$ ]] && [ "$conflicts" -gt 0 ]; then
             warnings_ref+=("⚠️ Branch '$current_branch' may have merge conflicts with '$default_branch' ($conflicts potential conflicts)")
         fi
     fi
@@ -228,7 +237,9 @@ check_github_status() {
 
     # Check for PRs that need review (assigned to you)
     local review_prs=$(gh pr list --state open --review-requested @me --json number 2>/dev/null | jq length 2>/dev/null || echo "0")
-    if [ -n "$review_prs" ] && [ "$review_prs" -gt 0 ] 2>/dev/null; then
+    # Remove any whitespace/newlines
+    review_prs=$(echo "$review_prs" | tr -d '\n\r\t ')
+    if [[ "$review_prs" =~ ^[0-9]+$ ]] && [ "$review_prs" -gt 0 ]; then
         warnings_ref+=("👀 You have $review_prs pull request(s) awaiting your review")
     fi
 
@@ -309,6 +320,20 @@ detect_python_manager() {
     fi
 }
 
+# Helper function: Install Python package with extras fallback
+install_python_package() {
+    local install_cmd="$1"
+    local manager_name="$2"
+
+    if ! $install_cmd -e ".[dev]" --quiet 2>&1; then
+        print_warning "Failed to install with dev extras, trying base installation..."
+        if ! $install_cmd -e . --quiet 2>&1; then
+            print_error "Failed to install Python dependencies with $manager_name"
+            exit 1
+        fi
+    fi
+}
+
 # Setup Python virtual environment
 setup_python_env() {
     local manager=$1
@@ -321,8 +346,7 @@ setup_python_env() {
                 uv venv
             fi
             print_info "Installing Python dependencies..."
-            uv pip install -e ".[dev]" --quiet 2>&1 || \
-            uv pip install -e . --quiet 2>&1 || true
+            install_python_package "uv pip install" "uv"
             ;;
         poetry)
             print_info "Installing Python dependencies with Poetry..."
@@ -336,8 +360,7 @@ setup_python_env() {
             source .venv/bin/activate
             print_info "Installing Python dependencies with pip..."
             pip install --upgrade pip --quiet
-            pip install -e ".[dev]" --quiet 2>&1 || \
-            pip install -e . --quiet 2>&1 || true
+            install_python_package "pip install" "pip"
             ;;
     esac
 }
@@ -416,6 +439,27 @@ build_all() {
     print_success "NOCP build complete"
 }
 
+# Helper function: Run pytest with proper exit code handling
+run_pytest_with_handling() {
+    local test_path="$1"
+    local test_type="$2"
+    local pytest_args="${3:-}"
+
+    run_python_cmd "pytest $test_path -v $pytest_args"
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        print_success "$test_type passed"
+        return 0
+    elif [ $exit_code -eq 5 ]; then
+        print_warning "No $test_type found"
+        return 0
+    else
+        print_error "$test_type failed"
+        exit 1
+    fi
+}
+
 # Testing
 run_tests() {
     print_section "Running Tests"
@@ -437,16 +481,14 @@ run_integration_tests() {
     print_section "Running Integration Tests"
 
     print_info "Running integration tests..."
-    run_python_cmd "pytest tests/integration/ -v" 2>/dev/null || \
-        print_warning "No integration tests found or tests failed"
+    run_pytest_with_handling "tests/integration/" "Integration tests"
 }
 
 run_e2e_tests() {
     print_section "Running End-to-End Tests"
 
     print_info "Running e2e tests..."
-    run_python_cmd "pytest tests/e2e/ -v" 2>/dev/null || \
-        print_warning "No e2e tests found or tests failed"
+    run_pytest_with_handling "tests/e2e/" "End-to-end tests"
 }
 
 # Linting and formatting
@@ -454,14 +496,18 @@ lint_all() {
     print_section "Linting Code"
 
     print_info "Running ruff linter..."
-    run_python_cmd "ruff check src/nocp tests examples" && \
-        print_success "Ruff linting passed" || \
+    if ! run_python_cmd "ruff check src/nocp tests examples"; then
         print_error "Ruff linting failed"
+        exit 1
+    fi
+    print_success "Ruff linting passed"
 
     print_info "Running mypy type checker..."
-    run_python_cmd "mypy src/nocp --ignore-missing-imports" && \
-        print_success "Mypy type checking passed" || \
+    if ! run_python_cmd "mypy src/nocp --ignore-missing-imports"; then
         print_warning "Mypy type checking completed with warnings"
+    else
+        print_success "Mypy type checking passed"
+    fi
 }
 
 format_all() {
@@ -475,9 +521,9 @@ format_all() {
     if command_exists npx || command_exists prettier; then
         print_info "Formatting configuration files..."
         if command_exists npx; then
-            npx prettier --write "*.md" "*.json" "*.yml" "*.yaml" "*.toml" 2>/dev/null || true
+            npx prettier --write "**/*.md" "**/*.json" "**/*.yml" "**/*.yaml" "**/*.toml" 2>/dev/null || true
         elif command_exists prettier; then
-            prettier --write "*.md" "*.json" "*.yml" "*.yaml" "*.toml" 2>/dev/null || true
+            prettier --write "**/*.md" "**/*.json" "**/*.yml" "**/*.yaml" "**/*.toml" 2>/dev/null || true
         fi
         print_success "Configuration files formatted"
     fi
@@ -526,8 +572,7 @@ run_benchmarks() {
     fi
 
     print_info "Running performance benchmarks..."
-    run_python_cmd "python -m pytest benchmarks/ -v --benchmark-only" 2>/dev/null || \
-        print_warning "No benchmarks found or benchmarks failed"
+    run_pytest_with_handling "benchmarks/" "Benchmarks" "--benchmark-only"
 }
 
 # Documentation
@@ -535,9 +580,11 @@ build_docs() {
     print_section "Building Documentation"
 
     print_info "Generating API documentation..."
-    run_python_cmd "python -m pdoc --html --output-dir docs/api src/nocp" 2>/dev/null && \
-        print_success "Documentation generated in docs/api/" || \
+    if run_python_cmd "python -m pdoc src/nocp --output-dir docs/api" 2>/dev/null; then
+        print_success "Documentation generated in docs/api/"
+    else
         print_warning "Documentation generation not available (install pdoc: uv pip install pdoc)"
+    fi
 }
 
 # Cleaning
@@ -548,8 +595,8 @@ clean_all() {
     rm -rf build dist *.egg-info
     rm -rf .pytest_cache .coverage htmlcov
     rm -rf .mypy_cache .ruff_cache
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete
+    find . -type d -name "__pycache__" -delete 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete 2>/dev/null || true
     print_success "Python artifacts cleaned"
 
     print_info "Cleaning documentation artifacts..."
@@ -564,8 +611,8 @@ clean_cache() {
 
     print_info "Cleaning Python caches..."
     rm -rf .pytest_cache .mypy_cache .ruff_cache
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete
+    find . -type d -name "__pycache__" -delete 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete 2>/dev/null || true
     print_success "Caches cleaned"
 }
 
