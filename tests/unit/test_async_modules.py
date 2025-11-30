@@ -18,12 +18,12 @@ from nocp.core.async_modules import (
 from nocp.models.contracts import (
     CompressionMethod,
     ContextData,
-    SerializationFormat,
     SerializationRequest,
     ToolRequest,
     ToolResult,
     ToolType,
 )
+from nocp.models.enums import OutputFormat
 
 
 class User(BaseModel):
@@ -229,7 +229,7 @@ class TestAsyncOutputSerializer:
         result = await serializer.serialize_async(request)
 
         assert result.serialized_text is not None
-        assert result.format_used in [SerializationFormat.TOON, SerializationFormat.COMPACT_JSON]
+        assert result.format_used in [OutputFormat.TOON, OutputFormat.COMPACT_JSON]
         assert result.optimized_tokens <= result.original_tokens
         assert result.is_valid is True
 
@@ -241,7 +241,7 @@ class TestAsyncOutputSerializer:
         request = SerializationRequest(data=sample_users, force_format="compact_json")
         result = await serializer.serialize_async(request)
 
-        assert result.format_used == SerializationFormat.COMPACT_JSON
+        assert result.format_used == OutputFormat.COMPACT_JSON
         assert result.is_valid is True
 
     @pytest.mark.asyncio
@@ -260,7 +260,7 @@ class TestAsyncOutputSerializer:
         result = await serializer.serialize_async(request)
 
         # Should select TOON for tabular data
-        assert result.format_used == SerializationFormat.TOON
+        assert result.format_used == OutputFormat.TOON
         assert result.schema_complexity in ["tabular", "nested"]
 
     @pytest.mark.asyncio
@@ -269,7 +269,7 @@ class TestAsyncOutputSerializer:
         serializer = AsyncOutputSerializer()
 
         format_used = serializer.negotiate_format(sample_users)
-        assert format_used in [SerializationFormat.TOON, SerializationFormat.COMPACT_JSON]
+        assert format_used in [OutputFormat.TOON, OutputFormat.COMPACT_JSON]
 
     @pytest.mark.asyncio
     async def test_is_uniform_list(self):
