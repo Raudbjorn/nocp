@@ -148,7 +148,7 @@ class Result(Generic[T]):
         Returns:
             Result returned by func, or original error
         """
-        if self.success and self.data is not None:
+        if self.success:
             try:
                 result = func(self.data)
                 # Merge warnings
