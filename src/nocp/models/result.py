@@ -114,7 +114,7 @@ class Result(Generic[T]):
         Returns:
             New Result with transformed data or original error
         """
-        if self.success and self.data is not None:
+        if self.success:
             try:
                 new_data = func(self.data)
                 return Result(
