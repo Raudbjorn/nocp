@@ -43,10 +43,8 @@ class Result(Generic[T]):
 
     def __post_init__(self):
         """Validate invariants after initialization"""
-        if self.success and self.data is None:
-            raise ValueError("Successful result must have data")
         if not self.success and self.error is None:
-            raise ValueError("Failed result must have error")
+            raise ValueError("Failed result must have an error")
 
     def add_warning(self, warning: str) -> 'Result[T]':
         """
