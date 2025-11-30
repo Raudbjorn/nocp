@@ -8,7 +8,7 @@ and display differences between two configuration objects.
 
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from ..core.config import ProxyConfig
 from ..utils.logging import get_logger
@@ -36,9 +36,9 @@ def export_config(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Export config, excluding secrets by default
-    exclude_fields = set()
+    exclude_fields = set()  # type: ignore[var-annotated]
     if not include_secrets:
-        exclude_fields = ProxyConfig.SECRET_FIELDS
+        exclude_fields = ProxyConfig.SECRET_FIELDS  # type: ignore[assignment]
 
     config_dict = config.model_dump(exclude=exclude_fields, exclude_none=True, mode="json")
 

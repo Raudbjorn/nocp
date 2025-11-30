@@ -87,7 +87,7 @@ class TransactionLogger:
         if not self.log_file.exists():
             return []
 
-        transactions = []
+        transactions: list[TransactionLog] = []
 
         try:
             with open(self.log_file) as f:

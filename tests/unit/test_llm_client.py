@@ -5,6 +5,8 @@ Unit tests for LLM Client and Model Router.
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import BaseModel
+
 from nocp.llm.client import LLMClient
 from nocp.llm.router import (
     ModelConfig,
@@ -13,7 +15,6 @@ from nocp.llm.router import (
     RequestComplexity,
 )
 from nocp.models.contracts import LLMResponse
-from pydantic import BaseModel
 
 
 class SampleSchema(BaseModel):

@@ -80,7 +80,7 @@ class AsyncContextManager:
 
         # Step 2: Check if compression warranted
         if original_tokens < self.compression_threshold:
-            return OptimizedContext(
+            return OptimizedContext(  # type: ignore[call-arg]
                 optimized_text=raw_text,
                 original_tokens=original_tokens,
                 optimized_tokens=original_tokens,
@@ -124,7 +124,7 @@ class AsyncContextManager:
         compressed_tokens = self.estimate_tokens(compressed_text)
         compression_ratio = compressed_tokens / original_tokens if original_tokens > 0 else 1.0
 
-        return OptimizedContext(
+        return OptimizedContext(  # type: ignore[call-arg]
             optimized_text=compressed_text,
             original_tokens=original_tokens,
             optimized_tokens=compressed_tokens,
@@ -200,7 +200,7 @@ class AsyncContextManager:
                 pruned_results.append({"tool_id": result.tool_id, "data": result.data})
 
         if context.transient_context:
-            pruned_results.append({"context": context.transient_context})
+            pruned_results.append({"context": context.transient_context})  # type: ignore[dict-item]
 
         return json.dumps(pruned_results, indent=2)
 
@@ -339,12 +339,12 @@ class AsyncOutputSerializer:
                     "#" if request.include_length_markers else "",
                 )
             else:  # COMPACT_JSON
-                serialized = await asyncio.to_thread(
+                serialized = await asyncio.to_thread(  # type: ignore[call-arg]
                     request.data.model_dump_json, indent=None, separators=(",", ":")
                 )
         except Exception:
             # Fallback to compact JSON on error
-            serialized = await asyncio.to_thread(
+            serialized = await asyncio.to_thread(  # type: ignore[call-arg]
                 request.data.model_dump_json, indent=None, separators=(",", ":")
             )
             format_used = OutputFormat.COMPACT_JSON

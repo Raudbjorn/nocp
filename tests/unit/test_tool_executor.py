@@ -17,6 +17,8 @@ import time
 from datetime import datetime
 
 import pytest
+from pydantic import ValidationError
+
 from nocp.core.act import ToolExecutor
 from nocp.exceptions import ToolExecutionError
 from nocp.models.contracts import (
@@ -25,7 +27,6 @@ from nocp.models.contracts import (
     ToolResult,
     ToolType,
 )
-from pydantic import ValidationError
 
 
 class TestToolExecutor:

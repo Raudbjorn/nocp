@@ -104,7 +104,7 @@ class ContextManager:
                     "reason": "below_threshold",
                 },
             )
-            return OptimizedContext(
+            return OptimizedContext(  # type: ignore[call-arg]  # type: ignore[call-arg]
                 optimized_text=raw_text,
                 original_tokens=original_tokens,
                 optimized_tokens=original_tokens,
@@ -159,7 +159,7 @@ class ContextManager:
             },
         )
 
-        return OptimizedContext(
+        return OptimizedContext(  # type: ignore[call-arg]  # type: ignore[call-arg]
             optimized_text=compressed_text,
             original_tokens=original_tokens,
             optimized_tokens=compressed_tokens,
