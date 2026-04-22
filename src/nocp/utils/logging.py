@@ -111,7 +111,7 @@ def setup_logging() -> None:
         ]
     else:
         # Use print logger factory for console-only mode with final renderer
-        logger_factory = structlog.PrintLoggerFactory()
+        logger_factory = structlog.PrintLoggerFactory()  # type: ignore[assignment]  # type: ignore[assignment]
         processors = shared_processors + [
             (
                 structlog.processors.JSONRenderer()
@@ -122,7 +122,7 @@ def setup_logging() -> None:
 
     # Configure structlog with appropriate processors
     structlog.configure(
-        processors=processors,
+        processors=processors,  # type: ignore[arg-type]  # type: ignore[arg-type]
         wrapper_class=structlog.make_filtering_bound_logger(
             getattr(structlog.stdlib, config.log_level.value, structlog.INFO)
         ),
@@ -216,7 +216,7 @@ class MetricsLogger:
             output_tokens=metrics.raw_output_tokens,
             output_format=metrics.final_output_format,
             total_latency_ms=metrics.total_latency_ms,
-            estimated_cost_usd=metrics.estimated_cost_usd,
+            estimated_cost_usd=metrics.estimated_cost_usd,  # type: ignore[attr-defined]  # type: ignore[attr-defined]
             efficiency_delta=efficiency_delta,
         )
 
