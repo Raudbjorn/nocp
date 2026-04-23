@@ -1,0 +1,54 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python cache directories
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+
+# Documentation build artifacts
+docs/api/
+
+# Node modules (if any)
+node_modules/
+
+# Lock files (don't format)
+uv.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Project-specific directories that shouldn't be formatted
+MDMAI/
+rapydocs/
+claude-code-manager/
